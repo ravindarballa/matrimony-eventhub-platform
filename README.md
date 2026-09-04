@@ -15,11 +15,12 @@ roadmaps.
 
 | Part | State |
 |------|-------|
-| `apps/api` — NestJS 12 | **Working.** 12/12 auth e2e tests pass |
+| `apps/api` — NestJS 12 | **Working.** 29/29 e2e tests pass (auth + booking slot lock) |
 | `apps/web` — Angular 22 | **Working.** Register → OTP → session verified against the live API |
 | `packages/contracts` | **Working.** Consumed by both apps |
 | `infrastructure/docker` | Compose file ready (needs Docker installed) |
-| Modules beyond auth | Specified in the architecture doc, not yet built |
+| Booking slot lock | **Working.** Double-booking proven impossible under concurrency |
+| Remaining modules | Specified in the architecture doc, not yet built |
 
 The auth vertical slice is verified end to end through the Angular dev-server
 proxy: registration, OTP verification, an httpOnly refresh cookie, an

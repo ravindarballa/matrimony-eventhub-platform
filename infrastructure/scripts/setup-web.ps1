@@ -16,7 +16,20 @@
   workspace is exactly what `ng new` produces for this version.
 #>
 
-$ErrorActionPreference = 'Stop'
+# NOT 'Stop': in Windows PowerShell 5.1 a native command writing to stderr - npm
+# emits config warnings there routinely - is wrapped as an ErrorRecord and would
+# abort this script on a harmless warning. Native exit codes are checked instead.
+$ErrorActionPreference = 'Continue'
+
+function Invoke-Step {
+  param([string]$Label, [scriptblock]$Action)
+  Write-Host "`n$Label" -ForegroundColor Cyan
+  & $Action
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "  Failed: $Label (exit $LASTEXITCODE)" -ForegroundColor Red
+    exit $LASTEXITCODE
+  }
+}
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $repoRoot

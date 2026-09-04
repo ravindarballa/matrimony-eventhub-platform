@@ -15,7 +15,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
-    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand"
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
+    "dev:mongo": "node scripts/dev-mongo.mjs"
   },
   "dependencies": {
     "@eventhub/contracts": "file:../../packages/contracts",
@@ -59,18 +60,32 @@
   },
   "jest": {
     "preset": "ts-jest/presets/default-esm",
-    "extensionsToTreatAsEsm": [".ts"],
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "testEnvironment": "node",
     "transform": {
-      "^.+\\.ts$": ["ts-jest", { "useESM": true, "tsconfig": "<rootDir>/../tsconfig.json" }]
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "useESM": true,
+          "tsconfig": "<rootDir>/../tsconfig.json"
+        }
+      ]
     },
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
-    "collectCoverageFrom": ["**/*.ts"],
+    "collectCoverageFrom": [
+      "**/*.ts"
+    ],
     "coverageDirectory": "../coverage"
   }
 }

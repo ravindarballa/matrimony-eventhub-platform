@@ -15,10 +15,17 @@ roadmaps.
 
 | Part | State |
 |------|-------|
-| `apps/api` — NestJS 12 | **Working.** Boots, serves, 12/12 auth e2e tests pass |
-| `packages/contracts` | **Working.** Builds, consumed by the API |
+| `apps/api` — NestJS 12 | **Working.** 12/12 auth e2e tests pass |
+| `apps/web` — Angular 22 | **Working.** Register → OTP → session verified against the live API |
+| `packages/contracts` | **Working.** Consumed by both apps |
 | `infrastructure/docker` | Compose file ready (needs Docker installed) |
-| `apps/web` — Angular 22 | **Not yet scaffolded** — blocked on Node 24, see below |
+| Modules beyond auth | Specified in the architecture doc, not yet built |
+
+The auth vertical slice is verified end to end through the Angular dev-server
+proxy: registration, OTP verification, an httpOnly refresh cookie, an
+authenticated `/auth/me`, session restore from the cookie alone, and refresh
+token rotation — including reuse detection, where replaying a rotated token
+revokes the whole token family.
 
 ## Prerequisites
 
@@ -43,18 +50,25 @@ Then reopen your terminal. The API also runs on Node 20, but the web app will no
 # 1. Shared types (both apps import these)
 cd packages/contracts; npm install; npm run build; cd ../..
 
-# 2. API
-cd apps/api; npm install; copy .env.example .env; cd ../..
+# 2. Install both apps
+npm run setup
 
-# 3. Web - only after switching to Node 24
-./infrastructure/scripts/setup-web.ps1
+# 3. API environment
+copy apps\api\.env.example apps\api\.env
 
-# 4. Local infrastructure
-npm run infra:up
+# 4. A database
+npm run infra:up                  # Docker: Mongo replica set, Redis, LocalStack
+# ...or, without Docker:
+cd apps/api; npm run dev:mongo    # in-memory replica set; prints a MONGODB_URI
+# paste that URI into apps/api/.env
 
 # 5. Run both apps
 npm run dev
 ```
+
+Then open <http://localhost:4200>, register with any valid Indian mobile number
+(10 digits starting 6–9). Outside production the API returns the OTP in the
+response and the verify screen displays it, so no SMS provider is needed locally.
 
 - API: <http://localhost:3000/api/v1>
 - Swagger: <http://localhost:3000/api/docs>

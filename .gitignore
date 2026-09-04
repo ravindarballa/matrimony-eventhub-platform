@@ -40,3 +40,6 @@ infrastructure/terraform/.terraform/
 
 # typescript incremental build state
 *.tsbuildinfo
+
+# angular build cache
+.angular/cache/

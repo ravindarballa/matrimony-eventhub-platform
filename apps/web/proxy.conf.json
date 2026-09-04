@@ -1,0 +1,9 @@
+{
+  "//": "Dev only. Proxying /api to the NestJS server keeps the browser same-origin, so the httpOnly refresh cookie is sent without any CORS or SameSite complications.",
+  "/api": {
+    "target": "http://localhost:3000",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
+  }
+}

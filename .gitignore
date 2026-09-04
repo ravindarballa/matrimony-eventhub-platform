@@ -1,42 +1,42 @@
-# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# dependencies
+node_modules/
+.npm/
 
-# Compiled output
-/dist
-/tmp
-/out-tsc
-/bazel-out
+# builds
+dist/
+build/
+tmp/
+out-tsc/
+.angular/
 
-# Node
-/node_modules
-npm-debug.log
-yarn-error.log
+# environment - never commit secrets
+.env
+.env.*
+!.env.example
 
-# IDEs and editors
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# testing
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# editors
 .idea/
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.history/*
-
-# Miscellaneous
-/.angular/cache
-.sass-cache/
-/connect.lock
-/coverage
-/libpeerconnection.log
-testem.log
-/typings
-
-# System files
+*.swp
 .DS_Store
 Thumbs.db
+
+# local infrastructure state
+infrastructure/docker/.data/
+infrastructure/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# typescript incremental build state
+*.tsbuildinfo

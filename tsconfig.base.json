@@ -1,0 +1,25 @@
+{
+  "//": "Shared compiler options + the path alias that lets apps/web and apps/api import the same contracts. This is a path mapping, not a workspace tool - no Nx, no Lerna.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      // Directory rather than the .ts file, so tsc emits a loadable require().
+      "@contracts": ["packages/contracts/src"],
+      "@contracts/*": ["packages/contracts/src/*"]
+    }
+  }
+}

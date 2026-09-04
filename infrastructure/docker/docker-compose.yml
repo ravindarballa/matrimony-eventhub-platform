@@ -1,0 +1,95 @@
+
+# Local development dependencies.
+#
+# Mongo runs as a single-node REPLICA SET, not standalone: the booking flow uses
+# multi-document transactions for the slot lock, and transactions require a
+# replica set even with one member. A standalone mongo would let the code appear
+# to work locally and fail in staging.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: eventhub-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # One-shot: initiates the replica set, then exits. Safe to re-run.
+  mongo-init:
+    image: mongo:7
+    container_name: eventhub-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: 'no'
+    entrypoint:
+      - bash
+      - -c
+      - |
+        mongosh --host mongo:27017 --quiet --eval '
+          try {
+            rs.status();
+            print("replica set already initiated");
+          } catch (e) {
+            rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27017" }] });
+            print("replica set initiated");
+          }
+        '
+
+  redis:
+    image: redis:7-alpine
+    container_name: eventhub-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Stands in for S3 and SQS locally so the upload and queue paths are exercised
+  # in development rather than stubbed out.
+  localstack:
+    image: localstack/localstack:3
+    container_name: eventhub-localstack
+    restart: unless-stopped
+    ports:
+      - '4566:4566'
+    environment:
+      SERVICES: s3,sqs,ses
+      DEBUG: '0'
+      AWS_DEFAULT_REGION: ap-south-1
+    volumes:
+      - localstack-data:/var/lib/localstack
+
+  mongo-express:
+    image: mongo-express:1
+    container_name: eventhub-mongo-ui
+    restart: unless-stopped
+    profiles: ['tools']
+    ports:
+      - '8081:8081'
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017/?replicaSet=rs0
+      ME_CONFIG_BASICAUTH: 'false'
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
+  redis-data:
+  localstack-data:

@@ -99,11 +99,11 @@ async function user(fullName, mobile, roles) {
 
 // ---------------------------------------------------------------- accounts
 
-const customerId = await user('Ravindar Balla', '9876500001', [
+const customerId = await user('Ravindar Balla', '9876543210', [
   'CUSTOMER',
   'SEEKER',
 ]);
-const adminId = await user('Platform Admin', '9876500002', ['ADMIN']);
+const adminId = await user('Platform Admin', '8008052727', ['ADMIN']);
 
 // ----------------------------------------------------------------- vendors
 
@@ -155,7 +155,7 @@ async function vendor({ owner, mobile, businessName, category, city, description
 
 const venue = await vendor({
   owner: 'Sunrise Banquets',
-  mobile: '9876500010',
+  mobile: '7702252727',
   businessName: 'Sunrise Banquets',
   category: 'VENUE',
   city: 'Hyderabad',
@@ -186,7 +186,7 @@ const venue = await vendor({
 
 const venue2 = await vendor({
   owner: 'Pearl Gardens',
-  mobile: '9876500011',
+  mobile: '9876543211',
   businessName: 'Pearl Gardens',
   category: 'VENUE',
   city: 'Hyderabad',
@@ -209,7 +209,7 @@ const venue2 = await vendor({
 
 const caterer = await vendor({
   owner: 'Annapurna Caterers',
-  mobile: '9876500012',
+  mobile: '9876543212',
   businessName: 'Annapurna Caterers',
   category: 'CATERING',
   city: 'Hyderabad',
@@ -240,7 +240,7 @@ const caterer = await vendor({
 
 const photographer = await vendor({
   owner: 'Lens & Light Studio',
-  mobile: '9876500013',
+  mobile: '9876543213',
   businessName: 'Lens & Light Studio',
   category: 'PHOTOGRAPHY',
   city: 'Hyderabad',
@@ -368,7 +368,7 @@ await db.collection('matrimony_profiles').insertOne({
 
 const anita = await profile({
   owner: 'Lakshmi Rao',
-  mobile: '9876500020',
+  mobile: '9876543214',
   displayName: 'Anita',
   gender: 'FEMALE',
   age: 28,
@@ -386,7 +386,7 @@ const anita = await profile({
 
 const priya = await profile({
   owner: 'Priya Menon',
-  mobile: '9876500021',
+  mobile: '9876543215',
   displayName: 'Priya',
   gender: 'FEMALE',
   age: 26,
@@ -403,7 +403,7 @@ const priya = await profile({
 
 const sneha = await profile({
   owner: 'Sneha Reddy',
-  mobile: '9876500022',
+  mobile: '9876543216',
   displayName: 'Sneha',
   gender: 'FEMALE',
   age: 30,
@@ -421,7 +421,7 @@ const sneha = await profile({
 
 const divya = await profile({
   owner: 'Divya Sharma',
-  mobile: '9876500023',
+  mobile: '9876543217',
   displayName: 'Divya',
   gender: 'FEMALE',
   age: 27,
@@ -469,12 +469,12 @@ console.log('  Seeded.\n');
 console.log('  Sign in with any of these — password is the same for all:\n');
 line('Password', PASSWORD);
 console.log('');
-line('Customer + matrimony', '9876500001   → /customer and /matrimony');
+line('Customer + matrimony', '9876543210   → /customer and /matrimony');
 line('Vendor (venue)', `${venue.mobile}   → /vendor`);
 line('Vendor (garden venue)', `${venue2.mobile}   → /vendor`);
 line('Vendor (catering)', `${caterer.mobile}   → /vendor`);
 line('Vendor (photography)', `${photographer.mobile}   → /vendor`);
-line('Admin', '9876500002   → KYC queue, ledger');
+line('Admin', '8008052727   → KYC queue, ledger');
 console.log('');
 line('Matrimony profiles', `${[anita, priya, sneha, divya].length} published brides`);
 line('Vendors', '4 verified, 6 packages');

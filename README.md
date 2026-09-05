@@ -83,12 +83,12 @@ them; sign in at <http://localhost:4200/auth/login>.
 
 | Mobile | Who | Where they land |
 |--------|-----|-----------------|
-| `9876500001` | Customer, also a matrimony seeker | `/customer` and `/matrimony` |
-| `9876500010` | Sunrise Banquets (venue) | `/vendor` |
-| `9876500011` | Pearl Gardens (venue) | `/vendor` |
-| `9876500012` | Annapurna Caterers | `/vendor` |
-| `9876500013` | Lens & Light Studio | `/vendor` |
-| `9876500002` | Admin | KYC queue, booking ledger |
+| `9876543210` | Customer, also a matrimony seeker | `/customer` and `/matrimony` |
+| `7702252727` | Sunrise Banquets (venue) | `/vendor` |
+| `9876543211` | Pearl Gardens (venue) | `/vendor` |
+| `9876543212` | Annapurna Caterers | `/vendor` |
+| `9876543213` | Lens & Light Studio | `/vendor` |
+| `8008052727` | Admin | KYC queue, booking ledger |
 
 The seed deliberately stops at the inputs — vendors, profiles, one wedding, one
 waiting interest. Bookings, quotes and payments are what you walk through in the
@@ -97,10 +97,10 @@ created.
 
 ### A five-minute walkthrough
 
-**The wedding side.** Sign in as `9876500001`. Under **Find vendors**, pick a
+**The wedding side.** Sign in as `9876543210`. Under **Find vendors**, pick a
 category and a date and note that only vendors free that day are listed. Select
 up to five and send one enquiry to all of them. Now sign in as a vendor
-(`9876500010`) in a private window: the enquiry is in their inbox with an SLA
+(`7702252727`) in a private window: the enquiry is in their inbox with an SLA
 clock, and the quote builder totals the lines while the server recomputes every
 figure on submit. Back as the customer, **Enquiries** compares the quotes;
 accepting one locks that vendor's date against everyone else and creates the
@@ -108,7 +108,7 @@ booking. Pay the advance from the booking page — the fake gateway has no hoste
 checkout, so the Pay button completes through a signed webhook down the same
 verification and double-entry path a real payment takes.
 
-**The matrimony side.** Still as `9876500001`, open **Matrimony**. Search shows
+**The matrimony side.** Still as `9876543210`, open **Matrimony**. Search shows
 four published profiles with their 36-guna score; open one for the full
 Ashtakoota breakdown and the Mangal Dosha verdict. Divya shares a nadi with the
 demo profile, so that koota scores 0/8. Priya shares its gotra, so adding

@@ -6,12 +6,20 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { BookingStatus } from '@eventhub/contracts';
 
 import { CurrentUser, Roles, type JwtPayload } from '../../core/decorators.js';
 import { BookingsService } from './services/bookings.service.js';
+
+class ListBookingsQuery {
+  @IsOptional()
+  @IsEnum(BookingStatus)
+  status?: BookingStatus;
+}
 
 class CancelBookingDto {
   @IsOptional()
@@ -24,6 +32,12 @@ class CancelBookingDto {
 @Controller('bookings')
 export class BookingsController {
   constructor(private readonly bookings: BookingsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'The bookings belonging to the signed-in customer' })
+  list(@Query() query: ListBookingsQuery, @CurrentUser() user: JwtPayload) {
+    return this.bookings.listMine(user.sub, user.roles, query.status);
+  }
 
   @Post('quotes/:quoteId/accept')
   @Roles('CUSTOMER')

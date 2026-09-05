@@ -93,45 +93,61 @@ jobs:
       # token to read. These probes each pass only if the npm log contains the
       # error code they are named after, so the failure can be identified from
       # the step outcomes alone. Remove once the cause is fixed.
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is EUSAGE'
+      # --- temporary diagnosis ------------------------------------------------
+      # Each probe passes only when the log matches, so the cause is readable
+      # from step outcomes alone. npm 10 writes "npm ERR! code X" and npm 11
+      # writes "npm error code X", so the pattern matches either.
+      - name: 'code EUSAGE'
         if: failure()
-        run: grep -q "npm error code EUSAGE" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code EUSAGE" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is EJSONPARSE'
+      - name: 'code EJSONPARSE'
         if: failure()
-        run: grep -q "npm error code EJSONPARSE" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code EJSONPARSE" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is ENOENT'
+      - name: 'code ENOENT'
         if: failure()
-        run: grep -q "npm error code ENOENT" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code ENOENT" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is EBADENGINE'
+      - name: 'code EBADENGINE'
         if: failure()
-        run: grep -q "npm error code EBADENGINE" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code EBADENGINE" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is ERESOLVE'
+      - name: 'code ERESOLVE'
         if: failure()
-        run: grep -q "npm error code ERESOLVE" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code ERESOLVE" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is EACCES'
+      - name: 'code EACCES'
         if: failure()
-        run: grep -q "npm error code EACCES" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code EACCES" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is E404'
+      - name: 'code E404'
         if: failure()
-        run: grep -q "npm error code E404" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code E404" ~/.npm/_logs/*.log
 
-      # Passes when the log contains this code, so the step outcome names the cause.
-      - name: 'npm error code is ELIFECYCLE'
+      - name: 'code ELIFECYCLE'
         if: failure()
-        run: grep -q "npm error code ELIFECYCLE" ~/.npm/_logs/*.log
+        run: grep -qE "(ERR!|error) code ELIFECYCLE" ~/.npm/_logs/*.log
+
+      - name: 'code EINTEGRITY'
+        if: failure()
+        run: grep -qE "(ERR!|error) code EINTEGRITY" ~/.npm/_logs/*.log
+
+      - name: 'code EEXIST'
+        if: failure()
+        run: grep -qE "(ERR!|error) code EEXIST" ~/.npm/_logs/*.log
+
+      - name: 'text: lock out of sync'
+        if: failure()
+        run: grep -q "can only install packages when your package.json" ~/.npm/_logs/*.log
+
+      - name: 'text: mentions contracts link'
+        if: failure()
+        run: grep -qi "contracts" ~/.npm/_logs/*.log
+
+      - name: 'a log for this run exists at all'
+        if: failure()
+        run: test -n "$(find ~/.npm/_logs -newermt '-3 minutes' -name '*.log' 2>/dev/null)"
 
       - name: 'npm log head'
         if: failure()

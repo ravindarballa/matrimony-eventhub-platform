@@ -89,69 +89,56 @@ jobs:
           echo "::endgroup::"
 
       # --- temporary diagnosis ------------------------------------------------
-      # The install fails on the runner but not locally, and job logs need a
-      # token to read. These probes each pass only if the npm log contains the
-      # error code they are named after, so the failure can be identified from
-      # the step outcomes alone. Remove once the cause is fixed.
-      # --- temporary diagnosis ------------------------------------------------
-      # Each probe passes only when the log matches, so the cause is readable
-      # from step outcomes alone. npm 10 writes "npm ERR! code X" and npm 11
-      # writes "npm error code X", so the pattern matches either.
-      - name: 'code EUSAGE'
+      # The install fails with ERESOLVE on the runner only, and the log mentions
+      # the contracts link. These probes narrow down which dependency conflicts;
+      # each passes only when the log contains the string it is named for.
+      - name: 'peer dependency wording'
         if: failure()
-        run: grep -qE "(ERR!|error) code EUSAGE" ~/.npm/_logs/*.log
+        run: grep -qF "peer" ~/.npm/_logs/*.log
 
-      - name: 'code EJSONPARSE'
+      - name: 'could not resolve dependency'
         if: failure()
-        run: grep -qE "(ERR!|error) code EJSONPARSE" ~/.npm/_logs/*.log
+        run: grep -qF "Could not resolve dependency" ~/.npm/_logs/*.log
 
-      - name: 'code ENOENT'
+      - name: 'conflicting peer dependency'
         if: failure()
-        run: grep -qE "(ERR!|error) code ENOENT" ~/.npm/_logs/*.log
+        run: grep -qF "Conflicting peer dependency" ~/.npm/_logs/*.log
 
-      - name: 'code EBADENGINE'
+      - name: 'invalid: does not satisfy'
         if: failure()
-        run: grep -qE "(ERR!|error) code EBADENGINE" ~/.npm/_logs/*.log
+        run: grep -qF "Invalid:" ~/.npm/_logs/*.log
 
-      - name: 'code ERESOLVE'
+      - name: 'mentions typescript'
         if: failure()
-        run: grep -qE "(ERR!|error) code ERESOLVE" ~/.npm/_logs/*.log
+        run: grep -qF "typescript" ~/.npm/_logs/*.log
 
-      - name: 'code EACCES'
+      - name: 'mentions @nestjs'
         if: failure()
-        run: grep -qE "(ERR!|error) code EACCES" ~/.npm/_logs/*.log
+        run: grep -qF "@nestjs" ~/.npm/_logs/*.log
 
-      - name: 'code E404'
+      - name: 'mentions rxjs'
         if: failure()
-        run: grep -qE "(ERR!|error) code E404" ~/.npm/_logs/*.log
+        run: grep -qF "rxjs" ~/.npm/_logs/*.log
 
-      - name: 'code ELIFECYCLE'
+      - name: 'mentions mongoose'
         if: failure()
-        run: grep -qE "(ERR!|error) code ELIFECYCLE" ~/.npm/_logs/*.log
+        run: grep -qF "mongoose" ~/.npm/_logs/*.log
 
-      - name: 'code EINTEGRITY'
+      - name: 'mentions @types/node'
         if: failure()
-        run: grep -qE "(ERR!|error) code EINTEGRITY" ~/.npm/_logs/*.log
+        run: grep -qF "@types/node" ~/.npm/_logs/*.log
 
-      - name: 'code EEXIST'
+      - name: 'mentions argon2'
         if: failure()
-        run: grep -qE "(ERR!|error) code EEXIST" ~/.npm/_logs/*.log
+        run: grep -qF "argon2" ~/.npm/_logs/*.log
 
-      - name: 'text: lock out of sync'
+      - name: 'mentions file: protocol'
         if: failure()
-        run: grep -q "can only install packages when your package.json" ~/.npm/_logs/*.log
-
-      - name: 'text: mentions contracts link'
-        if: failure()
-        run: grep -qi "contracts" ~/.npm/_logs/*.log
-
-      - name: 'a log for this run exists at all'
-        if: failure()
-        run: test -n "$(find ~/.npm/_logs -newermt '-3 minutes' -name '*.log' 2>/dev/null)"
+        run: grep -qF "file:" ~/.npm/_logs/*.log
 
       - name: 'npm log head'
         if: failure()
-        run: head -60 ~/.npm/_logs/*.log
+        run: head -80 ~/.npm/_logs/*.log
       # --- end temporary diagnosis --------------------------------------------
 
       # mongodb-memory-server downloads a mongod binary on first use; caching it

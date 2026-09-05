@@ -110,7 +110,8 @@ export class AuthService {
       OtpPurpose.REGISTRATION,
     );
 
-    const user = await this.users.findOne({ mobile });
+    // The hash is selected only so hasPassword can be reported honestly.
+    const user = await this.users.findOne({ mobile }).select('+passwordHash');
     if (!user) throw new UnauthorizedException(ErrorCode.AUTH_INVALID_CREDENTIALS);
 
     user.mobileVerified = true;
@@ -181,12 +182,46 @@ export class AuthService {
     return this.otp.issue(mobile, OtpPurpose.LOGIN, user?._id);
   }
 
-  async setPassword(userId: string, password: string): Promise<void> {
-    const hash = await argon2.hash(password, ARGON_OPTS);
-    await this.users.updateOne(
-      { _id: new Types.ObjectId(userId) },
-      { $set: { passwordHash: hash } },
-    );
+  /**
+   * Sets or changes the password.
+   *
+   * Setting one for the first time needs nothing extra: the caller has just
+   * proved possession of the mobile number through the OTP flow. CHANGING one
+   * requires the current password, because otherwise a stolen access token is
+   * enough to lock the real owner out of their own account permanently - the
+   * attacker sets a password the owner does not know, and OTP login no longer
+   * helps them because the account now has credentials they cannot guess.
+   *
+   * Every other session is revoked afterwards. If the change was prompted by a
+   * suspicion of compromise, leaving the other sessions alive defeats it.
+   */
+  async setPassword(
+    userId: string,
+    password: string,
+    currentPassword?: string,
+  ): Promise<void> {
+    const user = await this.users
+      .findById(userId)
+      .select('+passwordHash');
+    if (!user) throw new UnauthorizedException(ErrorCode.AUTH_FORBIDDEN);
+
+    if (user.passwordHash) {
+      const ok =
+        !!currentPassword &&
+        (await argon2.verify(user.passwordHash, currentPassword));
+      if (!ok) {
+        throw new UnauthorizedException({
+          code: ErrorCode.AUTH_INVALID_CREDENTIALS,
+          message: 'That is not your current password.',
+          fields: { currentPassword: 'Incorrect' },
+        });
+      }
+    }
+
+    user.passwordHash = await argon2.hash(password, ARGON_OPTS);
+    await user.save();
+
+    await this.tokens.revokeAllForUser(user._id);
   }
 
   /**
@@ -205,17 +240,15 @@ export class AuthService {
       });
     }
 
-    const user = await this.users.findByIdAndUpdate(
-      userId,
-      { $addToSet: { roles: role } },
-      { returnDocument: 'after' },
-    );
+    const user = await this.users
+      .findByIdAndUpdate(userId, { $addToSet: { roles: role } }, { returnDocument: 'after' })
+      .select('+passwordHash');
     if (!user) throw new UnauthorizedException(ErrorCode.AUTH_FORBIDDEN);
     return toSessionUser(user);
   }
 
   async findSessionUser(userId: string): Promise<SessionUser> {
-    const user = await this.users.findById(userId);
+    const user = await this.users.findById(userId).select('+passwordHash');
     if (!user) throw new UnauthorizedException(ErrorCode.AUTH_FORBIDDEN);
     return toSessionUser(user);
   }
@@ -235,6 +268,13 @@ export class AuthService {
   }
 }
 
+/**
+ * The user as the client sees it.
+ *
+ * `hasPassword` is derived from the hash, which the schema hides by default -
+ * so every caller that builds a SessionUser must select it explicitly, or a
+ * member with a password would be told they have none.
+ */
 function toSessionUser(user: UserDocument): SessionUser {
   return {
     id: user.id as string,
@@ -244,5 +284,6 @@ function toSessionUser(user: UserDocument): SessionUser {
     roles: user.roles,
     status: user.status,
     vendor: null,
+    hasPassword: Boolean(user.passwordHash),
   };
 }

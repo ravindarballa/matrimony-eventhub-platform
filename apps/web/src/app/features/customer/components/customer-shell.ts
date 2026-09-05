@@ -42,7 +42,7 @@ import { AuthStore } from '../../auth/data/auth.store';
       <span class="spacer"></span>
 
       @if (store.user(); as user) {
-        <span class="who" title="Signed in">{{ user.fullName }}</span>
+        <a class="who" routerLink="/account" title="Account settings">{{ user.fullName }}</a>
       }
       <eh-notification-bell />
       <button mat-stroked-button class="out" (click)="store.logout()">Sign out</button>
@@ -69,7 +69,7 @@ import { AuthStore } from '../../auth/data/auth.store';
     }
     .nav a.on, .nav a:hover { color: #fff; border-bottom-color: #ffb703; }
     .spacer { flex: 1 1 auto; }
-    .who { font-size: 0.85rem; opacity: 0.85; }
+    .who { text-decoration: none;  font-size: 0.85rem; opacity: 0.85; }
     .out { --mdc-outlined-button-label-text-color: #fff; border-color: rgb(255 255 255 / 0.5) !important; }
 
     @media (max-width: 640px) {

@@ -37,7 +37,7 @@ import { PortalSwitcher } from '../../../core/components/portal-switcher';
 
       <span class="spacer"></span>
       @if (store.user(); as user) {
-        <span class="who">{{ user.fullName }}</span>
+        <a class="who" routerLink="/account" title="Account settings">{{ user.fullName }}</a>
       }
       <eh-notification-bell />
       <button mat-stroked-button class="out" (click)="store.logout()">Sign out</button>
@@ -58,7 +58,7 @@ import { PortalSwitcher } from '../../../core/components/portal-switcher';
              padding: 0.35rem 0; border-bottom: 2px solid transparent; }
     .nav a.on, .nav a:hover { color: #fff; border-bottom-color: #ffb703; }
     .spacer { flex: 1 1 auto; }
-    .who { font-size: 0.85rem; opacity: 0.8; }
+    .who { text-decoration: none;  font-size: 0.85rem; opacity: 0.8; }
     .out { --mdc-outlined-button-label-text-color: #fff;
            border-color: rgb(255 255 255 / 0.45) !important; }
     @media (max-width: 640px) { .name, .who { display: none; } }

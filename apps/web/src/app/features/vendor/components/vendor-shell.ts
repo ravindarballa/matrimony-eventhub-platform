@@ -44,6 +44,8 @@ import { VendorApi, unwrap } from '../data/vendor-api';
         <a routerLink="/vendor/onboarding" routerLinkActive="on">Business</a>
       </nav>
 
+      <a class="account" routerLink="/account" title="Account settings">Account</a>
+
       <eh-portal-switcher />
 
       <span class="spacer"></span>
@@ -87,6 +89,9 @@ import { VendorApi, unwrap } from '../data/vendor-api';
              padding: 0.35rem 0; border-bottom: 2px solid transparent; }
     .nav a.on, .nav a:hover { color: #fff; border-bottom-color: #ffb703; }
     .spacer { flex: 1 1 auto; }
+    .account { color: rgb(255 255 255 / 0.75); text-decoration: none;
+              font-size: 0.9rem; white-space: nowrap; }
+    .account:hover { color: #fff; }
     .kyc { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
            letter-spacing: 0.04em; padding: 0.2rem 0.5rem; border-radius: 999px; }
     .kyc.good { background: #e6f4ea; color: #1b5e20; }

@@ -43,6 +43,8 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
         <a routerLink="/matrimony/profile/edit" routerLinkActive="on">My profile</a>
       </nav>
 
+      <a class="account" routerLink="/account" title="Account settings">Account</a>
+
       <eh-portal-switcher />
 
       <span class="spacer"></span>
@@ -86,6 +88,9 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
              padding: 0.35rem 0; border-bottom: 2px solid transparent; white-space: nowrap; }
     .nav a.on, .nav a:hover { color: #fff; border-bottom-color: #ffb703; }
     .spacer { flex: 1 1 auto; }
+    .account { color: rgb(255 255 255 / 0.75); text-decoration: none;
+              font-size: 0.9rem; white-space: nowrap; }
+    .account:hover { color: #fff; }
     .out { --mdc-outlined-button-label-text-color: #fff;
            border-color: rgb(255 255 255 / 0.5) !important; }
     .banner { background: #fbf1dc; border-bottom: 1px solid #f2dcae; color: #6b4600;

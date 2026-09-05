@@ -39,6 +39,8 @@ export const AuthStore = signalStore(
     displayName: computed(() => user()?.fullName ?? ''),
     isBusy: computed(() => status() !== 'idle'),
     isVendorVerified: computed(() => user()?.vendor?.kycStatus === 'VERIFIED'),
+    /** False for anyone who registered and never set one - i.e. by default. */
+    hasPassword: computed(() => user()?.hasPassword ?? false),
   })),
   withMethods((store) => {
     const api = inject(AuthApi);
@@ -74,6 +76,32 @@ export const AuthStore = signalStore(
           patchState(store, { status: 'idle' });
           throw err;
         }
+      },
+
+      /** Sign in with a one-time code, for an account with no password yet. */
+      async loginWithOtp(
+        mobile: string,
+        challengeId: string,
+        code: string,
+      ): Promise<void> {
+        patchState(store, { status: 'loading' });
+        try {
+          apply(await firstValueFrom(api.loginWithOtp(mobile, challengeId, code)));
+        } catch (err) {
+          patchState(store, { status: 'idle' });
+          throw err;
+        }
+      },
+
+      /**
+       * Setting a password revokes every session, this one included, so the
+       * store refreshes from /auth/me to pick up the new state rather than
+       * trusting what it held before.
+       */
+      async setPassword(password: string, currentPassword?: string): Promise<void> {
+        await firstValueFrom(api.setPassword(password, currentPassword));
+        const user = await firstValueFrom(api.me());
+        patchState(store, { user });
       },
 
       async verifyOtp(challengeId: string, code: string): Promise<void> {

@@ -12,6 +12,13 @@ export const routes: Routes = [
     loadChildren: () => import('./features/auth/auth.routes'),
   },
   {
+    path: 'account',
+    canActivate: [authGuard],
+    title: 'Your account · Matrimony EventHub',
+    loadComponent: () =>
+      import('./features/account/pages/account-page').then((m) => m.AccountPage),
+  },
+  {
     path: 'matrimony',
     canActivate: [authGuard],
     loadChildren: () => import('./features/matrimony/matrimony.routes'),

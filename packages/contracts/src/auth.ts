@@ -13,6 +13,14 @@ export interface SessionUser {
     businessName: string;
     kycStatus: string;
   } | null;
+  /**
+   * Whether this account can sign in with a password at all.
+   *
+   * Registration verifies a one-time code and never asks for one, so a new
+   * account has no password until it sets one. The client needs to know, or it
+   * shows a returning member a password box they can never satisfy.
+   */
+  hasPassword: boolean;
 }
 
 export interface RegisterRequest {

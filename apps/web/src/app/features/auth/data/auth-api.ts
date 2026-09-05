@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map, type Observable } from 'rxjs';
+import { firstValueFrom, map, type Observable } from 'rxjs';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -46,6 +46,42 @@ export class AuthApi {
     return this.http
       .post<Envelope<AuthResponse>>(`${this.base}/login`, { mobile, password })
       .pipe(map((r) => r.data));
+  }
+
+  /**
+   * Signs in with a one-time code instead of a password.
+   *
+   * This is the path that makes the product usable at all for a member who
+   * registered and never set a password - which is everyone, since
+   * registration only ever verifies a code.
+   */
+  loginWithOtp(
+    mobile: string,
+    otpChallengeId: string,
+    otpCode: string,
+  ): Observable<AuthResponse> {
+    return this.http
+      .post<Envelope<AuthResponse>>(`${this.base}/login`, {
+        mobile,
+        otpChallengeId,
+        otpCode,
+      })
+      .pipe(map((r) => r.data));
+  }
+
+  /** Sets a first password, or changes an existing one. */
+  setPassword(password: string, currentPassword?: string): Observable<unknown> {
+    return this.http.post(`${this.base}/password`, {
+      password,
+      ...(currentPassword ? { currentPassword } : {}),
+    });
+  }
+
+  /** Promise-shaped, for the login page's two-step code flow. */
+  requestLoginOtpOnce(
+    mobile: string,
+  ): Promise<{ challengeId: string; devCode?: string }> {
+    return firstValueFrom(this.requestLoginOtp(mobile));
   }
 
   requestLoginOtp(mobile: string): Observable<{ challengeId: string; devCode?: string }> {

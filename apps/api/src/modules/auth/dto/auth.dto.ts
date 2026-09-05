@@ -71,6 +71,15 @@ export class LoginDto {
 }
 
 export class SetPasswordDto {
+  /**
+   * Required only when the account already has a password. The service is the
+   * authority on that, since only it can see the hash.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  currentPassword?: string;
+
   @ApiProperty()
   @IsString()
   @MinLength(8, { message: 'Use at least 8 characters' })

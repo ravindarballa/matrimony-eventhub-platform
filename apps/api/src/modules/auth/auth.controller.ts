@@ -140,7 +140,7 @@ export class AuthController {
     @CurrentUser('sub') userId: string,
     @Body() dto: SetPasswordDto,
   ) {
-    await this.auth.setPassword(userId, dto.password);
+    await this.auth.setPassword(userId, dto.password, dto.currentPassword);
     return { success: true };
   }
 

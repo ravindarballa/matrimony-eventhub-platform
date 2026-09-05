@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import {
+  Capability,
   ErrorCode,
   MIN_AGE_BY_GENDER,
   PhotoPrivacy,
@@ -34,6 +35,7 @@ import {
   PartnerPreference,
   type PartnerPreferenceDocument,
 } from '../schemas/matrimony-social.schema.js';
+import { EntitlementsService } from '../../subscriptions/services/entitlements.service.js';
 import { GunaService } from './guna.service.js';
 import { RelationsService } from './relations.service.js';
 
@@ -66,6 +68,7 @@ export class ProfilesService {
     private readonly preferences: Model<PartnerPreferenceDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
     private readonly relations: RelationsService,
+    private readonly entitlements: EntitlementsService,
     private readonly guna: GunaService,
     private readonly events: EventEmitter2,
   ) {}
@@ -305,7 +308,23 @@ export class ProfilesService {
       shortlisted: shortlisted.has(target.id as string),
     });
 
-    const contact = mutual ? await this.contactFor(target) : null;
+    /*
+     * Two separate gates, and the order matters.
+     *
+     * Mutual interest is consent: without it no amount of money buys somebody
+     * else's phone number, and that has to stay true or the platform becomes a
+     * directory of numbers for sale. A plan is the second gate, and it is the
+     * one the business rests on - seeing is free, speaking is paid.
+     *
+     * Photos deliberately stay on the first gate alone. Unblurring on mutual
+     * acceptance is part of seeing, and charging for it would sour the moment
+     * two families have just agreed to talk.
+     */
+    const entitled = mutual
+      ? (await this.entitlements.can(viewerUserId, Capability.MATRIMONY_VIEW_CONTACT))
+          .allowed
+      : false;
+    const contact = entitled ? await this.contactFor(target) : null;
 
     return {
       ...card,
@@ -343,6 +362,7 @@ export class ProfilesService {
       },
       photos: this.visiblePhotos(target, mutual),
       contact,
+      contactLock: contact ? null : mutual ? 'PLAN_REQUIRED' : 'MUTUAL_REQUIRED',
       compatibility,
     };
   }

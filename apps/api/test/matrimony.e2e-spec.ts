@@ -16,6 +16,7 @@ import { MatrimonyModule } from '../src/modules/matrimony/matrimony.module.js';
 import { ProfilesService } from '../src/modules/matrimony/services/profiles.service.js';
 import { ProfileSearchService } from '../src/modules/matrimony/services/profile-search.service.js';
 import { InterestsService } from '../src/modules/matrimony/services/interests.service.js';
+import { EntitlementsService } from '../src/modules/subscriptions/services/entitlements.service.js';
 import { MatrimonyProfile } from '../src/modules/matrimony/schemas/matrimony-profile.schema.js';
 import {
   Block,
@@ -24,6 +25,7 @@ import {
   Shortlist,
 } from '../src/modules/matrimony/schemas/matrimony-social.schema.js';
 import { User } from '../src/modules/auth/schemas/user.schema.js';
+import { Subscription } from '../src/modules/subscriptions/schemas/subscription.schema.js';
 import type { MatrimonyProfileDocument } from '../src/modules/matrimony/schemas/matrimony-profile.schema.js';
 import type { UserDocument } from '../src/modules/auth/schemas/user.schema.js';
 import type {
@@ -44,12 +46,14 @@ describe('Matrimony (e2e)', () => {
   let profiles: ProfilesService;
   let search: ProfileSearchService;
   let interests: InterestsService;
+  let entitlements: EntitlementsService;
 
   let profileModel: Model<MatrimonyProfileDocument>;
   let interestModel: Model<InterestDocument>;
   let shortlistModel: Model<ShortlistDocument>;
   let blockModel: Model<BlockDocument>;
   let userModel: Model<UserDocument>;
+  let subscriptionModel: Model<Record<string, unknown>>;
 
   beforeAll(async () => {
     mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
@@ -68,12 +72,14 @@ describe('Matrimony (e2e)', () => {
     profiles = moduleRef.get(ProfilesService);
     search = moduleRef.get(ProfileSearchService);
     interests = moduleRef.get(InterestsService);
+    entitlements = moduleRef.get(EntitlementsService);
 
     profileModel = moduleRef.get(getModelToken(MatrimonyProfile.name));
     interestModel = moduleRef.get(getModelToken(Interest.name));
     shortlistModel = moduleRef.get(getModelToken(Shortlist.name));
     blockModel = moduleRef.get(getModelToken(Block.name));
     userModel = moduleRef.get(getModelToken(User.name));
+    subscriptionModel = moduleRef.get(getModelToken(Subscription.name));
 
     await Promise.all([
       profileModel.syncIndexes(),
@@ -96,6 +102,7 @@ describe('Matrimony (e2e)', () => {
       shortlistModel.deleteMany({}),
       blockModel.deleteMany({}),
       userModel.deleteMany({}),
+      subscriptionModel.deleteMany({}),
     ]);
   });
 
@@ -405,22 +412,92 @@ describe('Matrimony (e2e)', () => {
       expect(JSON.stringify(detail)).not.toContain('180000000');
     });
 
-    it('withholds the phone number until interest is mutual', async () => {
+    it('needs consent before anything: no plan buys an unmatched number', async () => {
       const bride = await seed({ gender: 'FEMALE' });
       const groom = await seed({ gender: 'MALE' });
+      await entitlements.grant(groom.userId, 'MATRIMONY_12M', 'test');
 
-      const before = await profiles.viewProfile(bride.profileId, groom.userId);
-      expect(before.contact).toBeNull();
+      const view = await profiles.viewProfile(bride.profileId, groom.userId);
+      expect(view.contact).toBeNull();
+      expect(view.contactLock).toBe('MUTUAL_REQUIRED');
+    });
+
+    it('needs a plan as well, once interest is mutual', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
 
       const sent = await interests.send(groom.userId, {
         toProfileId: bride.profileId,
       });
       await interests.accept(bride.userId, sent.id);
 
+      const free = await profiles.viewProfile(bride.profileId, groom.userId);
+      expect(free.contact).toBeNull();
+      expect(free.contactLock).toBe('PLAN_REQUIRED');
+
+      // Photos are part of seeing, which stays free.
+      expect(free.photoUrl).not.toBeNull();
+    });
+
+    it('shares the number once both gates are open', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+      await entitlements.grant(groom.userId, 'MATRIMONY_3M', 'test');
+
+      const sent = await interests.send(groom.userId, {
+        toProfileId: bride.profileId,
+      });
+      await interests.accept(bride.userId, sent.id);
+
+      const view = await profiles.viewProfile(bride.profileId, groom.userId);
+      expect(view.contact?.mobile).toBe(bride.mobile);
+      expect(view.contactLock).toBeNull();
+    });
+
+    /**
+     * The plan belongs to the viewer, not to the pair. One side paying does not
+     * hand the other side a number they have not paid for.
+     */
+    it('unlocks for the payer only, not for both sides', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+      await entitlements.grant(groom.userId, 'MATRIMONY_3M', 'test');
+
+      const sent = await interests.send(groom.userId, {
+        toProfileId: bride.profileId,
+      });
+      await interests.accept(bride.userId, sent.id);
+
+      const payerView = await profiles.viewProfile(bride.profileId, groom.userId);
+      expect(payerView.contact).not.toBeNull();
+
+      const freeView = await profiles.viewProfile(groom.profileId, bride.userId);
+      expect(freeView.contact).toBeNull();
+      expect(freeView.contactLock).toBe('PLAN_REQUIRED');
+    });
+
+    it('locks the number again when the plan lapses', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+      await entitlements.grant(groom.userId, 'MATRIMONY_3M', 'test');
+
+      const sent = await interests.send(groom.userId, {
+        toProfileId: bride.profileId,
+      });
+      await interests.accept(bride.userId, sent.id);
+      expect(
+        (await profiles.viewProfile(bride.profileId, groom.userId)).contact,
+      ).not.toBeNull();
+
+      // The period ends. Access ends with it, without waiting for a sweep.
+      await subscriptionModel.updateMany(
+        {},
+        { $set: { currentPeriodEnd: new Date(Date.now() - 1000) } },
+      );
+
       const after = await profiles.viewProfile(bride.profileId, groom.userId);
-      expect(after.contact?.mobile).toBe(bride.mobile);
-      // And the photo unblurs at the same moment, for the same reason.
-      expect(after.photoUrl).not.toBeNull();
+      expect(after.contact).toBeNull();
+      expect(after.contactLock).toBe('PLAN_REQUIRED');
     });
 
     it('makes a blocked profile disappear in both directions', async () => {

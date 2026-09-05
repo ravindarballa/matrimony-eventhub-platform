@@ -102,9 +102,19 @@ import type { AppError } from '../../../core/models/app-error';
         } @else {
           <section class="panel locked-contact">
             <h2>Contact</h2>
-            <p class="hint">
-              Phone numbers are shared only when both sides accept an interest.
-            </p>
+            @if (p.contactLock === 'PLAN_REQUIRED') {
+              <p class="hint">
+                <strong>You have both accepted.</strong>
+                Contact details are part of a plan — that is what pays for the
+                platform, while browsing and matching stay free.
+              </p>
+              <a mat-flat-button routerLink="/matrimony/plans">See plans</a>
+            } @else {
+              <p class="hint">
+                Phone numbers are shared only when both sides accept an interest.
+                Nothing unlocks a number without that — a plan does not either.
+              </p>
+            }
           </section>
         }
 
@@ -207,7 +217,8 @@ import type { AppError } from '../../../core/models/app-error';
     .panel p { margin: 0; font-size: 0.9rem; }
     .contact { border-color: #c8e6c9; background: #f6fbf7; }
     .phone { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .locked-contact { background: #fafafa; }
+    .locked-contact { background: #fafafa; align-items: flex-start; }
+    .locked-contact a { margin-top: 0.2rem; }
     .hint { font-size: 0.85rem; color: rgb(0 0 0 / 0.6); }
     dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
          gap: 0.6rem; }

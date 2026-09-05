@@ -156,8 +156,13 @@ export interface ProfileDetailDto extends ProfileCardDto {
   family: FamilyDetails;
   horoscope: Omit<HoroscopeDetails, 'birthTime' | 'birthPlace'>;
   photos: { id: string; url: string | null; isPrimary: boolean }[];
-  /** Only present once interest is mutual. */
+  /** Present only when the viewer has earned it: mutual interest AND a plan. */
   contact?: { mobile: string; managedBy: ProfileManagedBy } | null;
+  /**
+   * Why the number is not here, so the client can say something useful instead
+   * of showing an empty space. Null when the contact is present.
+   */
+  contactLock?: 'MUTUAL_REQUIRED' | 'PLAN_REQUIRED' | null;
   compatibility?: GunaResult | null;
 }
 

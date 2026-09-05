@@ -196,21 +196,39 @@ describe('Booking slot lock (e2e)', () => {
     expect(await availability.countDocuments({ vendorId: VENDOR })).toBe(1);
   });
 
-  it('confirms idempotently when the payment webhook is delivered twice', async () => {
+  it('confirms and books the date when the advance is captured', async () => {
     const customer = new Types.ObjectId();
     const quote = await makeQuote(customer);
     const booking = await service.acceptQuote(quote.id, customer.toString());
 
-    await service.confirmOnPayment(booking.id, 12_500_000 as never);
-    await service.confirmOnPayment(booking.id, 12_500_000 as never); // retry
+    // Deduplicating a repeated gateway delivery is the payments module's job -
+    // see payments.e2e-spec.ts. By the time a capture reaches here it is known
+    // to be new, so this applies it unconditionally.
+    await service.applyCapture(booking.id, 12_500_000 as never);
 
     const stored = await bookings.findById(booking.id);
     expect(stored!.status).toBe(BookingStatus.CONFIRMED);
-    // Charged once, not twice.
     expect(stored!.paidAmount).toBe(12_500_000);
 
     const slot = await availability.findOne({ vendorId: VENDOR });
     expect(slot!.status).toBe(AvailabilityStatus.BOOKED);
+  });
+
+  it('adds a later balance payment without a second confirmation', async () => {
+    const customer = new Types.ObjectId();
+    const quote = await makeQuote(customer);
+    const booking = await service.acceptQuote(quote.id, customer.toString());
+
+    await service.applyCapture(booking.id, 12_500_000 as never); // advance
+    await service.applyCapture(booking.id, 37_500_000 as never); // balance
+
+    const stored = await bookings.findById(booking.id);
+    expect(stored!.status).toBe(BookingStatus.CONFIRMED);
+    expect(stored!.paidAmount).toBe(50_000_000); // paid in full
+    // One CONFIRMED transition, not two.
+    expect(
+      stored!.statusHistory.filter((h) => h.to === BookingStatus.CONFIRMED),
+    ).toHaveLength(1);
   });
 
   it('releases the hold when the advance is never paid', async () => {

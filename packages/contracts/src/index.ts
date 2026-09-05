@@ -13,3 +13,6 @@ export * from './enums.js';
 export * from './common.js';
 export * from './auth.js';
 export * from './events.js';
+export * from './payments.js';
+export * from './matrimony.js';
+export * from './vendors.js';

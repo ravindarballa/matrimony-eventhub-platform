@@ -87,6 +87,10 @@ export const ErrorCode = {
   PAY_INTENT_EXPIRED: 'PAY_INTENT_EXPIRED',
   PAY_AMOUNT_MISMATCH: 'PAY_AMOUNT_MISMATCH',
   PAY_BAD_SIGNATURE: 'PAY_BAD_SIGNATURE',
+  PAY_GATEWAY_ERROR: 'PAY_GATEWAY_ERROR',
+  PAY_ALREADY_CAPTURED: 'PAY_ALREADY_CAPTURED',
+  PAY_NOTHING_DUE: 'PAY_NOTHING_DUE',
+  PAY_NOT_REFUNDABLE: 'PAY_NOT_REFUNDABLE',
 
   // generic
   VALIDATION_FAILED: 'VALIDATION_FAILED',
@@ -121,3 +125,51 @@ export const TDS_BPS = 100;
 
 /** GST on wedding services, in basis points. */
 export const GST_BPS = 1800;
+
+/** In-app notification, as the bell and inbox render it. */
+export interface NotificationDto {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  link?: string | null;
+  criticality: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationPreferencesDto {
+  inApp: boolean;
+  push: boolean;
+  sms: boolean;
+  email: boolean;
+  whatsapp: boolean;
+  /** Marketing is opt-in; everything else is opt-out. */
+  marketing: boolean;
+  quietFromHour: number;
+  quietToHour: number;
+}
+
+/** What the admin dashboard shows at a glance. */
+export interface PlatformMetricsDto {
+  users: { total: number; customers: number; vendors: number; seekers: number };
+  vendors: { total: number; verified: number; awaitingKyc: number };
+  matrimony: { profiles: number; active: number; interestsSent: number };
+  bookings: { total: number; confirmed: number; cancelled: number };
+  money: {
+    /** Gross value of confirmed bookings, in paisa. */
+    gmv: Paisa;
+    inEscrow: Paisa;
+    commissionEarned: Paisa;
+    refunded: Paisa;
+  };
+}
+
+/** A photo waiting on a moderator, with just enough context to judge it. */
+export interface PhotoModerationItemDto {
+  profileId: string;
+  displayName: string;
+  photoId: string;
+  url: string;
+  submittedAt: string;
+}

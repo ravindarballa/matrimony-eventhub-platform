@@ -9,7 +9,7 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Types } from 'mongoose';
-import type { Connection, Model } from 'mongoose';
+import type { ClientSession, Connection, Model } from 'mongoose';
 import {
   AvailabilityStatus,
   BookingStatus,
@@ -187,37 +187,58 @@ export class BookingsService {
   }
 
   /**
-   * Confirm on payment. Called by the payment webhook, which is the only thing
-   * that may confirm a booking - a client callback is never trusted.
+   * Applies a captured payment to the booking.
+   *
+   * Called only by the payments module, from the verified gateway webhook - a
+   * client callback is never trusted to confirm a booking. Whether this is safe
+   * to call twice is decided upstream: the webhook is deduplicated and the
+   * payment row is guarded, so by the time we are here the capture is known to
+   * be new. Confirming is therefore conditional on the booking still being
+   * ACCEPTED, which leaves a later balance payment free to add to paidAmount
+   * without attempting a second CONFIRMED transition.
+   *
+   * When the caller supplies a session the work joins their transaction, so the
+   * payment, the ledger and the booking commit as one.
    */
-  async confirmOnPayment(bookingId: string, amountPaid: Paisa): Promise<void> {
-    const session = await this.conn.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const booking = await this.bookings.findById(bookingId).session(session);
-        if (!booking) throw new NotFoundException();
+  async applyCapture(
+    bookingId: string,
+    amountPaid: Paisa,
+    session?: ClientSession,
+  ): Promise<void> {
+    const run = async (s: ClientSession): Promise<void> => {
+      const booking = await this.bookings.findById(bookingId).session(s);
+      if (!booking) throw new NotFoundException();
 
-        // Idempotent: gateways retry, and a second delivery must be harmless.
-        if (booking.status === BookingStatus.CONFIRMED) return;
+      booking.paidAmount = (booking.paidAmount + amountPaid) as Paisa;
 
-        booking.paidAmount = (booking.paidAmount + amountPaid) as Paisa;
+      if (booking.status === BookingStatus.ACCEPTED) {
         this.machine.apply(booking, BookingStatus.CONFIRMED, {
           actorId: 'system',
           actorRoles: [],
           system: true,
           reason: 'Advance received',
         });
-        await booking.save({ session });
-
         // Promote the hold to a firm booking.
         await this.availability.updateOne(
           { _id: booking.availabilityId },
           { $set: { status: AvailabilityStatus.BOOKED } },
-          { session },
+          { session: s },
         );
-      });
+      }
+
+      await booking.save({ session: s });
+    };
+
+    if (session) {
+      await run(session);
+      return;
+    }
+
+    const own = await this.conn.startSession();
+    try {
+      await own.withTransaction(() => run(own));
     } finally {
-      await session.endSession();
+      await own.endSession();
     }
   }
 
@@ -327,12 +348,39 @@ export class BookingsService {
     return released;
   }
 
+  /**
+   * The caller's own bookings, newest event first. Ownership is in the query,
+   * so there is no way to page into someone else's wedding.
+   */
+  async listMine(
+    userId: string,
+    roles: readonly Role[],
+    status?: BookingStatus,
+  ): Promise<BookingDto[]> {
+    if (!Types.ObjectId.isValid(userId)) return [];
+
+    const rows = await this.bookings
+      .find({
+        customerId: new Types.ObjectId(userId),
+        ...(status ? { status } : {}),
+      })
+      .sort({ eventDate: 1 });
+
+    return rows.map((b) => this.toDto(b, roles));
+  }
+
   async findOwned(bookingId: string, userId: string): Promise<BookingDocument> {
-    if (!Types.ObjectId.isValid(bookingId)) throw new NotFoundException();
+    if (!Types.ObjectId.isValid(bookingId) || !Types.ObjectId.isValid(userId)) {
+      throw new NotFoundException();
+    }
     // Ownership is part of the query, not a post-fetch check.
+    //
+    // Both ids are constructed, not passed as strings: Mongoose 9 no longer
+    // coerces a hex string to an ObjectId in a filter, so a string here would
+    // silently match nothing and turn every owned read into a 404.
     const booking = await this.bookings.findOne({
-      _id: bookingId,
-      customerId: userId,
+      _id: new Types.ObjectId(bookingId),
+      customerId: new Types.ObjectId(userId),
     });
     if (!booking) throw new NotFoundException();
     return booking;

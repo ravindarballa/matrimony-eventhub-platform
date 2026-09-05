@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -36,6 +37,13 @@ export interface RequestMeta {
   device?: string;
   ip?: string;
 }
+
+/**
+ * The roles a signed-in user may add to themselves. Kept in step with AddRoleDto,
+ * which is the first line of this defence; this list is the second, for callers
+ * that reach the service without passing through that DTO.
+ */
+const SELF_SERVICE_ROLES: readonly Role[] = ['SEEKER', 'CUSTOMER'];
 
 @Injectable()
 export class AuthService {
@@ -181,7 +189,22 @@ export class AuthService {
     );
   }
 
+  /**
+   * Self-service role addition, for a seeker who now wants to plan a wedding.
+   *
+   * Privileged roles are never grantable this way. AddRoleDto already restricts
+   * the request body; this check makes the rule hold for any future caller that
+   * reaches the service directly, because authentication is not authorisation
+   * and ADMIN must never be self-assignable.
+   */
   async addRole(userId: string, role: Role): Promise<SessionUser> {
+    if (!SELF_SERVICE_ROLES.includes(role)) {
+      throw new ForbiddenException({
+        code: ErrorCode.AUTH_FORBIDDEN,
+        message: 'That role can only be granted by an administrator.',
+      });
+    }
+
     const user = await this.users.findByIdAndUpdate(
       userId,
       { $addToSet: { roles: role } },

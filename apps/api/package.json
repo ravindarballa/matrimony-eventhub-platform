@@ -16,7 +16,8 @@
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
-    "dev:mongo": "node scripts/dev-mongo.mjs"
+    "dev:mongo": "node scripts/dev-mongo.mjs",
+    "seed": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@eventhub/contracts": "file:../../packages/contracts",

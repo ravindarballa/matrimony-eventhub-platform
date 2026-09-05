@@ -3,6 +3,8 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { ApiTags } from '@nestjs/swagger';
 import type { Connection } from 'mongoose';
 
+import { ConfigService } from '@nestjs/config';
+
 import { Public } from '../../core/decorators.js';
 
 @ApiTags('health')
@@ -33,5 +35,36 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController] })
+/**
+ * The API root.
+ *
+ * Without this, opening the base URL in a browser returns Express's bare
+ * "Cannot GET /api/v1", which reads as a broken server rather than as the
+ * correct answer to asking for a path nothing is mapped to. Five lines to say
+ * what this service is and where to go instead.
+ */
+@ApiTags('health')
+@Controller()
+class RootController {
+  constructor(private readonly config: ConfigService) {}
+
+  @Public()
+  @Get()
+  index() {
+    const prefix = this.config.get<string>('apiPrefix', 'api');
+    return {
+      name: 'Matrimony EventHub API',
+      version: '1.0',
+      environment: this.config.get<string>('nodeEnv', 'development'),
+      docs: `/${prefix}/docs`,
+      health: {
+        live: `/${prefix}/v1/health/live`,
+        ready: `/${prefix}/v1/health/ready`,
+      },
+      web: this.config.get<string>('corsOrigin', 'http://localhost:4200'),
+    };
+  }
+}
+
+@Module({ controllers: [RootController, HealthController] })
 export class HealthModule {}

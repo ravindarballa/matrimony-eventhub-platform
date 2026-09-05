@@ -1,0 +1,126 @@
+name: CI
+
+# Every push and every pull request. The e2e suite starts its own in-memory
+# MongoDB replica set, so no service container is needed - which also means the
+# pipeline tests the same database topology a developer runs locally.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Angular 22 will not run on anything older.
+  NODE_VERSION: '24'
+
+jobs:
+  contracts:
+    name: Shared contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: packages/contracts/package-lock.json
+
+      - run: npm ci
+        working-directory: packages/contracts
+      - run: npm run build
+        working-directory: packages/contracts
+
+      # Both apps import the built output, so it is passed on rather than
+      # rebuilt three times.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contracts-dist
+          path: packages/contracts/dist
+          retention-days: 1
+
+  api:
+    name: API — typecheck, unit, e2e
+    runs-on: ubuntu-latest
+    needs: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Build contracts
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - run: npm ci
+        working-directory: apps/api
+
+      # mongodb-memory-server downloads a mongod binary on first use; caching it
+      # keeps the e2e job off the network on every run after the first.
+      - name: Cache mongodb-memory-server binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongo-binaries-${{ runner.os }}
+
+      - name: Typecheck
+        working-directory: apps/api
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Unit tests
+        working-directory: apps/api
+        run: npm test
+
+      - name: End-to-end tests
+        working-directory: apps/api
+        run: npm run test:e2e
+        env:
+          # Only used by the config validation at boot; the e2e suite builds its
+          # own module and never reads a real .env.
+          NODE_ENV: test
+          JWT_ACCESS_SECRET: ci-only-secret-at-least-32-characters-long
+          JWT_REFRESH_SECRET: ci-only-different-secret-32-chars-min
+
+  web:
+    name: Web — typecheck and build
+    runs-on: ubuntu-latest
+    needs: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Build contracts
+        working-directory: packages/contracts
+        run: npm ci && npm run build
+
+      - run: npm ci
+        working-directory: apps/web
+
+      # A production build is the typecheck: the Angular compiler checks every
+      # template, which tsc alone does not.
+      - name: Production build
+        working-directory: apps/web
+        run: npm run build -- --configuration production
+
+  # A single required check, so branch protection has one box to tick rather
+  # than a list that has to be edited whenever a job is added.
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    if: always()
+    steps:
+      - name: Fail if any job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "All checks passed."

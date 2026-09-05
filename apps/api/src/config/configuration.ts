@@ -12,6 +12,14 @@ export interface AppConfig {
     refreshTtl: number;
   };
   otp: { ttlSeconds: number; maxAttempts: number };
+  /** 'memory' is correct for one task; 'redis' is required for more than one. */
+  throttleStore: 'memory' | 'redis';
+  payments: {
+    /** 'fake' runs the whole flow locally with no credentials. */
+    gateway: 'fake' | 'razorpay';
+    fakeWebhookSecret: string;
+    razorpay: { keyId: string; keySecret: string; webhookSecret: string };
+  };
 }
 
 export default (): AppConfig => ({
@@ -36,5 +44,18 @@ export default (): AppConfig => ({
   otp: {
     ttlSeconds: Number(process.env.OTP_TTL_SECONDS ?? 600),
     maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS ?? 5),
+  },
+  throttleStore: process.env.THROTTLE_STORE === 'redis' ? 'redis' : 'memory',
+  payments: {
+    // Defaults to the fake gateway: a missing PAYMENT_GATEWAY must not silently
+    // point a developer's machine at a real payment provider.
+    gateway: process.env.PAYMENT_GATEWAY === 'razorpay' ? 'razorpay' : 'fake',
+    fakeWebhookSecret:
+      process.env.PAYMENT_FAKE_WEBHOOK_SECRET ?? 'fake_webhook_secret_local_dev',
+    razorpay: {
+      keyId: process.env.RAZORPAY_KEY_ID ?? '',
+      keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
+      webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
+    },
   },
 });

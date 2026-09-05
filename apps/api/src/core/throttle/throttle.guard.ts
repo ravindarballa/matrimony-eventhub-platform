@@ -3,7 +3,10 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
+  Logger,
+  Optional,
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -18,8 +21,9 @@ import type { JwtPayload } from '../decorators.js';
  * @nestjs/throttler has no NestJS 12 release - its latest (6.5.0) is CommonJS
  * and peers at Nest 11 - so this is a small stand-in with the same decorator
  * ergonomics. The store is swappable: the in-memory one below is correct for a
- * single task, and MUST be replaced with the Redis store before running more
- * than one API task, or each task will enforce its own separate quota.
+ * single task, and the Redis store (THROTTLE_STORE=redis) is what makes the
+ * limits hold across several, since otherwise each task enforces its own
+ * separate quota and five tasks mean five times the intended limit.
  */
 
 export interface ThrottleLimit {
@@ -77,9 +81,23 @@ const ANON_DEFAULT: ThrottleLimit = { limit: 20, ttlMs: 60_000 };
 
 @Injectable()
 export class ThrottleGuard implements CanActivate {
-  private readonly store: ThrottleStore = new MemoryThrottleStore();
+  private readonly logger = new Logger(ThrottleGuard.name);
+  private readonly store: ThrottleStore;
 
-  constructor(private readonly reflector: Reflector) {}
+  /**
+   * The store is injected when one is provided and falls back to the in-memory
+   * one otherwise, so a developer running a single task needs no Redis and a
+   * deployment that runs several gets the shared counter by configuration.
+   */
+  constructor(
+    private readonly reflector: Reflector,
+    @Optional() @Inject(THROTTLE_STORE) store?: ThrottleStore,
+  ) {
+    this.store = store ?? new MemoryThrottleStore();
+    if (!store) {
+      this.logger.log('Rate limiting with the in-memory store (single task only)');
+    }
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const skip = this.reflector.getAllAndOverride<boolean>(SKIP_THROTTLE_KEY, [

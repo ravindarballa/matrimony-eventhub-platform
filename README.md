@@ -15,12 +15,12 @@ roadmaps.
 
 | Part | State |
 |------|-------|
-| `apps/api` — NestJS 12 | **Working.** 29/29 e2e tests pass (auth + booking slot lock) |
-| `apps/web` — Angular 22 | **Working.** Register → OTP → session verified against the live API |
+| `apps/api` — NestJS 12 | **Working.** 123 tests pass (102 e2e + 21 unit) |
+| `apps/web` — Angular 22 | **Working.** Auth, customer, vendor and matrimony portals |
 | `packages/contracts` | **Working.** Consumed by both apps |
 | `infrastructure/docker` | Compose file ready (needs Docker installed) |
 | Booking slot lock | **Working.** Double-booking proven impossible under concurrency |
-| Remaining modules | Specified in the architecture doc, not yet built |
+| Notifications, reporting, chat | Specified in the architecture doc, not yet built |
 
 The auth vertical slice is verified end to end through the Angular dev-server
 proxy: registration, OTP verification, an httpOnly refresh cookie, an
@@ -57,23 +57,64 @@ npm run setup
 # 3. API environment
 copy apps\api\.env.example apps\api\.env
 
-# 4. A database
-npm run infra:up                  # Docker: Mongo replica set, Redis, LocalStack
-# ...or, without Docker:
-cd apps/api; npm run dev:mongo    # in-memory replica set; prints a MONGODB_URI
-# paste that URI into apps/api/.env
+# 4. A database — in its own terminal, and leave it running
+cd apps/api; npm run dev:mongo     # in-memory replica set on port 27077
+# ...or with Docker: npm run infra:up
 
-# 5. Run both apps
+# 5. Demo data — accounts, verified vendors, matrimony profiles
+npm run db:seed
+
+# 6. Run both apps
 npm run dev
 ```
 
-Then open <http://localhost:4200>, register with any valid Indian mobile number
-(10 digits starting 6–9). Outside production the API returns the OTP in the
-response and the verify screen displays it, so no SMS provider is needed locally.
+The Mongo port is fixed at 27077 and `.env.example` already points at it, so
+there is nothing to paste between terminals. A replica set is required rather
+than a standalone: the booking slot lock uses multi-document transactions.
 
+- Web: <http://localhost:4200>
 - API: <http://localhost:3000/api/v1>
 - Swagger: <http://localhost:3000/api/docs>
-- Web: <http://localhost:4200>
+
+### Demo accounts
+
+`npm run db:seed` creates these. The password is **`EventHub@2026`** for all of
+them; sign in at <http://localhost:4200/auth/login>.
+
+| Mobile | Who | Where they land |
+|--------|-----|-----------------|
+| `9876500001` | Customer, also a matrimony seeker | `/customer` and `/matrimony` |
+| `9876500010` | Sunrise Banquets (venue) | `/vendor` |
+| `9876500011` | Pearl Gardens (venue) | `/vendor` |
+| `9876500012` | Annapurna Caterers | `/vendor` |
+| `9876500013` | Lens & Light Studio | `/vendor` |
+| `9876500002` | Admin | KYC queue, booking ledger |
+
+The seed deliberately stops at the inputs — vendors, profiles, one wedding, one
+waiting interest. Bookings, quotes and payments are what you walk through in the
+app, and fabricating them here would produce records the real code paths never
+created.
+
+### A five-minute walkthrough
+
+**The wedding side.** Sign in as `9876500001`. Under **Find vendors**, pick a
+category and a date and note that only vendors free that day are listed. Select
+up to five and send one enquiry to all of them. Now sign in as a vendor
+(`9876500010`) in a private window: the enquiry is in their inbox with an SLA
+clock, and the quote builder totals the lines while the server recomputes every
+figure on submit. Back as the customer, **Enquiries** compares the quotes;
+accepting one locks that vendor's date against everyone else and creates the
+booking. Pay the advance from the booking page — the fake gateway has no hosted
+checkout, so the Pay button completes through a signed webhook down the same
+verification and double-entry path a real payment takes.
+
+**The matrimony side.** Still as `9876500001`, open **Matrimony**. Search shows
+four published profiles with their 36-guna score; open one for the full
+Ashtakoota breakdown and the Mangal Dosha verdict. Divya shares a nadi with the
+demo profile, so that koota scores 0/8. Priya shares its gotra, so adding
+`Kashyap` to the gotra exclusions removes her entirely. Sneha is manglik and the
+demo profile is not, which the panel flags. Anita has already sent an interest —
+accepting it under **Interests** is what reveals the phone number, on both sides.
 
 ## Layout
 

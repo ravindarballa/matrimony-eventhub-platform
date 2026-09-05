@@ -6,6 +6,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import type { MatrimonyProfileDto } from '@eventhub/contracts';
 
 import { NotificationBell } from '../../../core/components/notification-bell';
+import { PortalSwitcher } from '../../../core/components/portal-switcher';
 import { AuthStore } from '../../auth/data/auth.store';
 import { MatrimonyApi, unwrap } from '../data/matrimony-api';
 
@@ -26,6 +27,7 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
     MatButtonModule,
     MatToolbarModule,
     NotificationBell,
+    PortalSwitcher,
   ],
   template: `
     <mat-toolbar class="bar">
@@ -40,6 +42,8 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
         <a routerLink="/matrimony/shortlist" routerLinkActive="on">Shortlist</a>
         <a routerLink="/matrimony/profile/edit" routerLinkActive="on">My profile</a>
       </nav>
+
+      <eh-portal-switcher />
 
       <span class="spacer"></span>
       <eh-notification-bell />

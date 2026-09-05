@@ -5,6 +5,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { AuthStore } from '../../auth/data/auth.store';
 import { NotificationBell } from '../../../core/components/notification-bell';
+import { PortalSwitcher } from '../../../core/components/portal-switcher';
 
 /** The back-office frame. Deliberately plain: it is a work surface. */
 @Component({
@@ -17,6 +18,7 @@ import { NotificationBell } from '../../../core/components/notification-bell';
     MatButtonModule,
     MatToolbarModule,
     NotificationBell,
+    PortalSwitcher,
   ],
   template: `
     <mat-toolbar class="bar">
@@ -30,6 +32,8 @@ import { NotificationBell } from '../../../core/components/notification-bell';
         <a routerLink="/admin/kyc" routerLinkActive="on">KYC queue</a>
         <a routerLink="/admin/moderation" routerLinkActive="on">Photos</a>
       </nav>
+
+      <eh-portal-switcher />
 
       <span class="spacer"></span>
       @if (store.user(); as user) {

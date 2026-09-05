@@ -6,6 +6,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import type { VendorDto } from '@eventhub/contracts';
 
 import { NotificationBell } from '../../../core/components/notification-bell';
+import { PortalSwitcher } from '../../../core/components/portal-switcher';
 import { AuthStore } from '../../auth/data/auth.store';
 import { VendorApi, unwrap } from '../data/vendor-api';
 
@@ -27,6 +28,7 @@ import { VendorApi, unwrap } from '../data/vendor-api';
     MatButtonModule,
     MatToolbarModule,
     NotificationBell,
+    PortalSwitcher,
   ],
   template: `
     <mat-toolbar class="bar">
@@ -41,6 +43,8 @@ import { VendorApi, unwrap } from '../data/vendor-api';
         <a routerLink="/vendor/services" routerLinkActive="on">Catalogue</a>
         <a routerLink="/vendor/onboarding" routerLinkActive="on">Business</a>
       </nav>
+
+      <eh-portal-switcher />
 
       <span class="spacer"></span>
 

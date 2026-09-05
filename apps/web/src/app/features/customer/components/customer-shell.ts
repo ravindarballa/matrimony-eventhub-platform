@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { NotificationBell } from '../../../core/components/notification-bell';
+import { PortalSwitcher } from '../../../core/components/portal-switcher';
 import { AuthStore } from '../../auth/data/auth.store';
 
 /**
@@ -21,6 +22,7 @@ import { AuthStore } from '../../auth/data/auth.store';
     MatButtonModule,
     MatToolbarModule,
     NotificationBell,
+    PortalSwitcher,
   ],
   template: `
     <mat-toolbar class="bar">
@@ -34,6 +36,8 @@ import { AuthStore } from '../../auth/data/auth.store';
         <a routerLink="/customer/enquiries" routerLinkActive="on">Enquiries</a>
         <a routerLink="/customer/bookings" routerLinkActive="on">Bookings</a>
       </nav>
+
+      <eh-portal-switcher />
 
       <span class="spacer"></span>
 

@@ -22,6 +22,7 @@ import {
   ShortlistSchema,
 } from './schemas/matrimony-social.schema.js';
 import { User, UserSchema } from '../auth/schemas/user.schema.js';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module.js';
 
 /**
  * The matrimony bounded context.
@@ -41,6 +42,8 @@ import { User, UserSchema } from '../auth/schemas/user.schema.js';
       { name: Block.name, schema: BlockSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    // Matrimony asks this what a member may do; it never checks for a plan itself.
+    SubscriptionsModule,
   ],
   controllers: [MatrimonyController],
   providers: [

@@ -510,7 +510,10 @@ describe('Matrimony (e2e)', () => {
       ).rejects.toMatchObject({ status: 409 });
 
       const quota = await interests.remainingQuota(groom.userId);
-      expect(quota.used).toBe(FREE_DAILY_INTEREST_QUOTA);
+      expect(quota.interests.used).toBe(FREE_DAILY_INTEREST_QUOTA);
+      // A free member, so the plan is reported as the floor rather than absent.
+      expect(quota.plan).toBe('FREE');
+      expect(quota.interests.remaining).toBe(0);
     });
 
     it('counts a withdrawn interest against the quota', async () => {
@@ -523,7 +526,7 @@ describe('Matrimony (e2e)', () => {
       await interests.withdraw(groom.userId, sent.id);
 
       // Otherwise send-withdraw-send would defeat the limit entirely.
-      expect((await interests.remainingQuota(groom.userId)).used).toBe(1);
+      expect((await interests.remainingQuota(groom.userId)).interests.used).toBe(1);
     });
 
     it('lets only the recipient answer', async () => {

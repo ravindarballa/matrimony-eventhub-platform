@@ -9,12 +9,13 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import {
+  Capability,
   ErrorCode,
-  FREE_DAILY_INTEREST_QUOTA,
   InterestStatus,
   ProfileStatus,
   type InterestDto,
   type SendInterestRequest,
+  type EntitlementsDto,
   type ShortlistEntryDto,
 } from '@eventhub/contracts';
 
@@ -23,6 +24,7 @@ import {
   type InterestDocument,
 } from '../schemas/matrimony-social.schema.js';
 import type { MatrimonyProfileDocument } from '../schemas/matrimony-profile.schema.js';
+import { EntitlementsService } from '../../subscriptions/services/entitlements.service.js';
 import { ProfilesService } from './profiles.service.js';
 import { RelationsService } from './relations.service.js';
 
@@ -45,6 +47,7 @@ export class InterestsService {
     @InjectModel(Interest.name) private readonly interests: Model<InterestDocument>,
     private readonly profiles: ProfilesService,
     private readonly relations: RelationsService,
+    private readonly entitlements: EntitlementsService,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -82,11 +85,18 @@ export class InterestsService {
       });
     }
 
+    // The limit is not a constant here: it belongs to whatever plan this
+    // member is on, and EntitlementsService is the only thing that knows.
     const usedToday = await this.sentToday(from._id);
-    if (usedToday >= FREE_DAILY_INTEREST_QUOTA) {
+    const verdict = await this.entitlements.can(
+      userId,
+      Capability.MATRIMONY_SEND_INTEREST,
+      usedToday,
+    );
+    if (!verdict.allowed) {
       throw new ConflictException({
         code: ErrorCode.MAT_QUOTA_EXCEEDED,
-        message: `You have used all ${FREE_DAILY_INTEREST_QUOTA} interests for today. A plan lifts this limit.`,
+        message: verdict.reason,
       });
     }
 
@@ -217,13 +227,13 @@ export class InterestsService {
     );
   }
 
-  /** How many interests the member has left today. Drives the upgrade prompt. */
-  async remainingQuota(userId: string): Promise<{ used: number; limit: number }> {
+/**
+   * What the member may do and what is left today. Drives the upgrade prompt,
+   * and reports an unlimited plan as a null limit rather than a large number.
+   */
+  async remainingQuota(userId: string): Promise<EntitlementsDto> {
     const mine = await this.profiles.requireOwn(userId);
-    return {
-      used: await this.sentToday(mine._id),
-      limit: FREE_DAILY_INTEREST_QUOTA,
-    };
+    return this.entitlements.snapshot(userId, await this.sentToday(mine._id));
   }
 
   // ---------------------------------------------------------------- shortlist

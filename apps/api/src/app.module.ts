@@ -25,6 +25,7 @@ import { HealthModule } from './modules/health/health.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { MatrimonyModule } from './modules/matrimony/matrimony.module.js';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module.js';
 import { VendorsModule } from './modules/vendors/vendors.module.js';
 
 @Module({
@@ -52,6 +53,7 @@ import { VendorsModule } from './modules/vendors/vendors.module.js';
     // Feature modules. Each is a bounded context; they communicate through
     // domain events rather than by importing one another's services.
     AuthModule,
+    SubscriptionsModule,
     MatrimonyModule,
     VendorsModule,
     EventsModule,

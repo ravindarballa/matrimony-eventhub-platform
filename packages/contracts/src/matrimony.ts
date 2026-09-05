@@ -330,5 +330,9 @@ export const MIN_AGE_BY_GENDER: Readonly<Record<Gender, number>> = {
   MALE: 21,
 };
 
-/** Interests a free member may send in a day. */
-export const FREE_DAILY_INTEREST_QUOTA = 5;
+/**
+ * The free interest allowance now lives with the plan table, in
+ * subscriptions.ts, so the paywall has one source of truth. Re-exported here
+ * only so existing imports keep working.
+ */
+export { FREE_DAILY_INTERESTS as FREE_DAILY_INTEREST_QUOTA } from './subscriptions.js';

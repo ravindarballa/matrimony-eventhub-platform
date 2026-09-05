@@ -16,13 +16,6 @@ concurrency:
 env:
   # Angular 22 will not run on anything older.
   NODE_VERSION: '24'
-  # Pinned deliberately. npm 11 gates package install scripts behind an approval
-  # list, and this project has three packages that need theirs - argon2 most of
-  # all, which compiles its native binding during install and is simply broken
-  # without it. Whether that gate warns or refuses depends on the exact npm the
-  # runner happens to ship, which is not something a build should be at the
-  # mercy of. Pinning makes the toolchain a decision rather than an accident.
-  NPM_VERSION: '10.9.2'
 
 jobs:
   contracts:
@@ -36,8 +29,6 @@ jobs:
           cache: npm
           cache-dependency-path: packages/contracts/package-lock.json
 
-      - name: Pin npm
-        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - run: npm ci
         working-directory: packages/contracts
@@ -64,8 +55,6 @@ jobs:
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
 
-      - name: Pin npm
-        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Build contracts
         working-directory: packages/contracts
@@ -88,49 +77,6 @@ jobs:
           tail -n 200 ~/.npm/_logs/*.log || echo "(no npm log found)"
           echo "::endgroup::"
 
-      # --- temporary diagnosis ------------------------------------------------
-      # Narrowed to a peer conflict between typescript and a @nestjs package.
-      # These probes name the exact pair.
-      - name: '@nestjs/cli'
-        if: failure()
-        run: grep -qF "@nestjs/cli" ~/.npm/_logs/*.log
-
-      - name: '@nestjs/schematics'
-        if: failure()
-        run: grep -qF "@nestjs/schematics" ~/.npm/_logs/*.log
-
-      - name: '@nestjs/testing'
-        if: failure()
-        run: grep -qF "@nestjs/testing" ~/.npm/_logs/*.log
-
-      - name: '@nestjs/core'
-        if: failure()
-        run: grep -qF "@nestjs/core" ~/.npm/_logs/*.log
-
-      - name: '@nestjs/common'
-        if: failure()
-        run: grep -qF "@nestjs/common" ~/.npm/_logs/*.log
-
-      - name: 'ts-jest'
-        if: failure()
-        run: grep -qF "ts-jest" ~/.npm/_logs/*.log
-
-      - name: 'typescript 5.9'
-        if: failure()
-        run: grep -qF "typescript@~5.9" ~/.npm/_logs/*.log
-
-      - name: 'typescript 4.x wanted'
-        if: failure()
-        run: grep -qF "typescript@^4" ~/.npm/_logs/*.log
-
-      - name: 'typescript 5.x wanted'
-        if: failure()
-        run: grep -qF "typescript@^5" ~/.npm/_logs/*.log
-
-      - name: 'eventhub contracts named'
-        if: failure()
-        run: grep -qF "@eventhub/contracts" ~/.npm/_logs/*.log
-      # --- end temporary diagnosis --------------------------------------------
 
       # mongodb-memory-server downloads a mongod binary on first use; caching it
       # keeps the e2e job off the network on every run after the first.
@@ -170,8 +116,6 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      - name: Pin npm
-        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Build contracts
         working-directory: packages/contracts

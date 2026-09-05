@@ -10,31 +10,25 @@
     "setup": "npm run setup:api && npm run setup:web",
     "setup:api": "cd apps/api && npm install",
     "setup:web": "cd apps/web && npm install",
-
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "cd apps/api && npm run start:dev",
     "dev:web": "cd apps/web && npm start",
-
     "build": "npm run build:api && npm run build:web",
     "build:api": "cd apps/api && npm run build",
     "build:web": "cd apps/web && npm run build -- --configuration production",
-
     "test": "npm run test:api && npm run test:web",
     "test:api": "cd apps/api && npm test",
     "test:api:e2e": "cd apps/api && npm run test:e2e",
     "test:web": "cd apps/web && npm test -- --no-watch --browsers=ChromeHeadless",
-
     "lint": "npm run lint:api && npm run lint:web",
     "lint:api": "cd apps/api && npm run lint",
     "lint:web": "cd apps/web && npm run lint",
-
     "typecheck": "tsc --noEmit -p apps/api/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json",
-
     "infra:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
     "infra:down": "docker compose -f infrastructure/docker/docker-compose.yml down",
     "infra:logs": "docker compose -f infrastructure/docker/docker-compose.yml logs -f",
-
-    "db:seed": "cd apps/api && npm run seed"
+    "db:seed": "cd apps/api && npm run seed",
+    "db:init-rs": "cd apps/api && npm run db:init-rs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

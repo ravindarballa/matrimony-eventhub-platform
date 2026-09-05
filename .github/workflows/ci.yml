@@ -89,56 +89,47 @@ jobs:
           echo "::endgroup::"
 
       # --- temporary diagnosis ------------------------------------------------
-      # The install fails with ERESOLVE on the runner only, and the log mentions
-      # the contracts link. These probes narrow down which dependency conflicts;
-      # each passes only when the log contains the string it is named for.
-      - name: 'peer dependency wording'
+      # Narrowed to a peer conflict between typescript and a @nestjs package.
+      # These probes name the exact pair.
+      - name: '@nestjs/cli'
         if: failure()
-        run: grep -qF "peer" ~/.npm/_logs/*.log
+        run: grep -qF "@nestjs/cli" ~/.npm/_logs/*.log
 
-      - name: 'could not resolve dependency'
+      - name: '@nestjs/schematics'
         if: failure()
-        run: grep -qF "Could not resolve dependency" ~/.npm/_logs/*.log
+        run: grep -qF "@nestjs/schematics" ~/.npm/_logs/*.log
 
-      - name: 'conflicting peer dependency'
+      - name: '@nestjs/testing'
         if: failure()
-        run: grep -qF "Conflicting peer dependency" ~/.npm/_logs/*.log
+        run: grep -qF "@nestjs/testing" ~/.npm/_logs/*.log
 
-      - name: 'invalid: does not satisfy'
+      - name: '@nestjs/core'
         if: failure()
-        run: grep -qF "Invalid:" ~/.npm/_logs/*.log
+        run: grep -qF "@nestjs/core" ~/.npm/_logs/*.log
 
-      - name: 'mentions typescript'
+      - name: '@nestjs/common'
         if: failure()
-        run: grep -qF "typescript" ~/.npm/_logs/*.log
+        run: grep -qF "@nestjs/common" ~/.npm/_logs/*.log
 
-      - name: 'mentions @nestjs'
+      - name: 'ts-jest'
         if: failure()
-        run: grep -qF "@nestjs" ~/.npm/_logs/*.log
+        run: grep -qF "ts-jest" ~/.npm/_logs/*.log
 
-      - name: 'mentions rxjs'
+      - name: 'typescript 5.9'
         if: failure()
-        run: grep -qF "rxjs" ~/.npm/_logs/*.log
+        run: grep -qF "typescript@~5.9" ~/.npm/_logs/*.log
 
-      - name: 'mentions mongoose'
+      - name: 'typescript 4.x wanted'
         if: failure()
-        run: grep -qF "mongoose" ~/.npm/_logs/*.log
+        run: grep -qF "typescript@^4" ~/.npm/_logs/*.log
 
-      - name: 'mentions @types/node'
+      - name: 'typescript 5.x wanted'
         if: failure()
-        run: grep -qF "@types/node" ~/.npm/_logs/*.log
+        run: grep -qF "typescript@^5" ~/.npm/_logs/*.log
 
-      - name: 'mentions argon2'
+      - name: 'eventhub contracts named'
         if: failure()
-        run: grep -qF "argon2" ~/.npm/_logs/*.log
-
-      - name: 'mentions file: protocol'
-        if: failure()
-        run: grep -qF "file:" ~/.npm/_logs/*.log
-
-      - name: 'npm log head'
-        if: failure()
-        run: head -80 ~/.npm/_logs/*.log
+        run: grep -qF "@eventhub/contracts" ~/.npm/_logs/*.log
       # --- end temporary diagnosis --------------------------------------------
 
       # mongodb-memory-server downloads a mongod binary on first use; caching it

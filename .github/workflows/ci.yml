@@ -16,6 +16,13 @@ concurrency:
 env:
   # Angular 22 will not run on anything older.
   NODE_VERSION: '24'
+  # Pinned deliberately. npm 11 gates package install scripts behind an approval
+  # list, and this project has three packages that need theirs - argon2 most of
+  # all, which compiles its native binding during install and is simply broken
+  # without it. Whether that gate warns or refuses depends on the exact npm the
+  # runner happens to ship, which is not something a build should be at the
+  # mercy of. Pinning makes the toolchain a decision rather than an accident.
+  NPM_VERSION: '10.9.2'
 
 jobs:
   contracts:
@@ -28,6 +35,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: packages/contracts/package-lock.json
+
+      - name: Pin npm
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - run: npm ci
         working-directory: packages/contracts
@@ -53,6 +63,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: apps/api/package-lock.json
+
+      - name: Pin npm
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Build contracts
         working-directory: packages/contracts
@@ -112,6 +125,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
+
+      - name: Pin npm
+        run: npm install -g npm@${{ env.NPM_VERSION }}
 
       - name: Build contracts
         working-directory: packages/contracts

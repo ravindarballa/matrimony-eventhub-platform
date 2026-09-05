@@ -88,6 +88,56 @@ jobs:
           tail -n 200 ~/.npm/_logs/*.log || echo "(no npm log found)"
           echo "::endgroup::"
 
+      # --- temporary diagnosis ------------------------------------------------
+      # The install fails on the runner but not locally, and job logs need a
+      # token to read. These probes each pass only if the npm log contains the
+      # error code they are named after, so the failure can be identified from
+      # the step outcomes alone. Remove once the cause is fixed.
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is EUSAGE'
+        if: failure()
+        run: grep -q "npm error code EUSAGE" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is EJSONPARSE'
+        if: failure()
+        run: grep -q "npm error code EJSONPARSE" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is ENOENT'
+        if: failure()
+        run: grep -q "npm error code ENOENT" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is EBADENGINE'
+        if: failure()
+        run: grep -q "npm error code EBADENGINE" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is ERESOLVE'
+        if: failure()
+        run: grep -q "npm error code ERESOLVE" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is EACCES'
+        if: failure()
+        run: grep -q "npm error code EACCES" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is E404'
+        if: failure()
+        run: grep -q "npm error code E404" ~/.npm/_logs/*.log
+
+      # Passes when the log contains this code, so the step outcome names the cause.
+      - name: 'npm error code is ELIFECYCLE'
+        if: failure()
+        run: grep -q "npm error code ELIFECYCLE" ~/.npm/_logs/*.log
+
+      - name: 'npm log head'
+        if: failure()
+        run: head -60 ~/.npm/_logs/*.log
+      # --- end temporary diagnosis --------------------------------------------
+
       # mongodb-memory-server downloads a mongod binary on first use; caching it
       # keeps the e2e job off the network on every run after the first.
       - name: Cache mongodb-memory-server binaries

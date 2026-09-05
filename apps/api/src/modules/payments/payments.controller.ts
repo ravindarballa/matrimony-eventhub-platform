@@ -17,7 +17,7 @@ import { ErrorCode, type Paisa } from '@eventhub/contracts';
 
 import { CurrentUser, Public, Roles } from '../../core/decorators.js';
 import { SkipThrottle, Throttle } from '../../core/throttle/throttle.guard.js';
-import { CreateIntentDto, RefundDto } from './dto/payments.dto.js';
+import { BuyPlanDto, CreateIntentDto, RefundDto } from './dto/payments.dto.js';
 import { LedgerService } from './services/ledger.service.js';
 import { PaymentsService } from './services/payments.service.js';
 
@@ -62,6 +62,28 @@ export class PaymentsController {
     );
   }
 
+  @Post('subscriptions')
+  @Throttle({ limit: 10, ttlMs: 60_000 })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description: 'A fresh unique value per checkout attempt',
+  })
+  @ApiOperation({ summary: 'Open a checkout for a matrimony plan' })
+  createSubscriptionIntent(
+    @Body() dto: BuyPlanDto,
+    @CurrentUser('sub') userId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 128) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'An Idempotency-Key header of 8 to 128 characters is required.',
+      });
+    }
+    return this.payments.createSubscriptionIntent(userId, dto.plan, idempotencyKey);
+  }
+
   /**
    * The gateway's callback. Public because the gateway holds no session - the
    * HMAC over the raw body is the authentication, and it is verified before the
@@ -96,7 +118,8 @@ export class PaymentsController {
    * would provide.
    */
   @Post(':id/simulate-capture')
-  @Roles('CUSTOMER')
+  // Deliberately not restricted to CUSTOMER: a matrimony member buying a plan
+  // is a SEEKER, and the service already refuses a payment that is not theirs.
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Fake gateway only: complete a checkout as if paid' })
   simulateCapture(@Param('id') id: string, @CurrentUser('sub') userId: string) {

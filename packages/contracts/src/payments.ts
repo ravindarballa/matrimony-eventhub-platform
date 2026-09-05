@@ -28,8 +28,11 @@ export interface PaymentIntentDto {
 
 export interface PaymentDto {
   id: string;
-  bookingId: string;
-  milestone: PaymentMilestone;
+  /** What this payment bought. A subscription has no booking behind it. */
+  purpose: 'BOOKING' | 'SUBSCRIPTION';
+  bookingId?: string | null;
+  milestone?: PaymentMilestone | null;
+  planCode?: string | null;
   amount: Paisa;
   status: PaymentStatus;
   method?: string | null;
@@ -82,6 +85,18 @@ export const LedgerAccount = {
   VENDOR_PAYABLE: 'VENDOR_PAYABLE',
   /** What has been refunded to customers. */
   CUSTOMER_REFUND: 'CUSTOMER_REFUND',
+
+  /**
+   * Money the platform has actually earned and keeps, as opposed to escrow,
+   * which is held on behalf of a vendor. Subscription revenue lands here.
+   * Mixing the two would make escrow impossible to reconcile against gateway
+   * settlements, because the balance would include money nobody is owed.
+   */
+  PLATFORM_CASH: 'PLATFORM_CASH',
+  /** Subscription revenue, net of tax. */
+  SUBSCRIPTION_INCOME: 'SUBSCRIPTION_INCOME',
+  /** GST collected on subscriptions, owed to the government. */
+  GST_PAYABLE: 'GST_PAYABLE',
 } as const;
 export type LedgerAccount = (typeof LedgerAccount)[keyof typeof LedgerAccount];
 
@@ -92,6 +107,34 @@ export const GatewayEvent = {
   REFUND_PROCESSED: 'refund.processed',
 } as const;
 export type GatewayEvent = (typeof GatewayEvent)[keyof typeof GatewayEvent];
+
+/**
+ * What a subscription purchase costs, broken out.
+ *
+ * The plan price is exclusive of tax and GST is added on top, so the member
+ * sees one number to pay and the books keep the platform's share separate from
+ * the government's.
+ */
+export interface SubscriptionQuote {
+  planCode: string;
+  planName: string;
+  /** The plan price, before tax. */
+  net: Paisa;
+  /** GST at 18%, which is not ours to keep. */
+  gst: Paisa;
+  /** What is actually charged. */
+  gross: Paisa;
+  durationDays: number;
+}
+
+export interface SubscriptionIntentDto {
+  paymentId: string;
+  gatewayOrderId: string;
+  gatewayKeyId: string;
+  currency: 'INR';
+  quote: SubscriptionQuote;
+  expiresAt: string;
+}
 
 export interface CommissionBreakdown {
   category: VendorCategory;

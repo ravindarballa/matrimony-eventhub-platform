@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { httpResource } from '@angular/common/http';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import type { InterestDto } from '@eventhub/contracts';
+import type { EntitlementsDto, InterestDto } from '@eventhub/contracts';
 
 import { MatrimonyApi, unwrap } from '../data/matrimony-api';
 import { ProfileCard } from '../components/profile-card';
@@ -20,16 +21,20 @@ type Tab = 'received' | 'sent' | 'accepted';
 @Component({
   selector: 'eh-interests-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProfileCard, MatButtonModule, MatProgressBarModule],
+  imports: [ProfileCard, RouterLink, MatButtonModule, MatProgressBarModule],
   template: `
     <main class="wrap">
       <header>
         <h1>Interests</h1>
         @if (quota.value(); as q) {
           <p class="sub">
-            {{ q.limit - q.used }} of {{ q.limit }} interests left today.
-            @if (q.used >= q.limit) {
-              <strong>A plan lifts this limit.</strong>
+            @if (q.interests.limit === null) {
+              {{ q.planName }} — no daily limit on interests.
+            } @else {
+              {{ q.interests.remaining }} of {{ q.interests.limit }} interests left today.
+              @if (q.interests.remaining === 0) {
+                <a routerLink="/matrimony/plans"><strong>A plan lifts this limit.</strong></a>
+              }
             }
           </p>
         }
@@ -140,10 +145,9 @@ export class InterestsPage {
     { parse: unwrap<InterestDto[]>, defaultValue: [] },
   );
 
-  protected readonly quota = httpResource<{ used: number; limit: number }>(
-    () => this.api.quotaUrl,
-    { parse: unwrap<{ used: number; limit: number }> },
-  );
+  protected readonly quota = httpResource<EntitlementsDto>(() => this.api.quotaUrl, {
+    parse: unwrap<EntitlementsDto>,
+  });
 
   protected async accept(interest: InterestDto): Promise<void> {
     await this.run(() => this.api.acceptInterest(interest.id), 'Accepted.');

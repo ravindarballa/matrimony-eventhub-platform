@@ -8,7 +8,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
-import { PaymentMilestone } from '@eventhub/contracts';
+import { PaymentMilestone, PlanCode } from '@eventhub/contracts';
 
 export class CreateIntentDto {
   @ApiProperty()
@@ -36,4 +36,10 @@ export class RefundDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+}
+
+export class BuyPlanDto {
+  @ApiProperty({ enum: PlanCode })
+  @IsEnum(PlanCode)
+  plan!: PlanCode;
 }

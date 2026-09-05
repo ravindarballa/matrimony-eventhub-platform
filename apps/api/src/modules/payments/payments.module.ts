@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { EventsModule } from '../events/events.module.js';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module.js';
 import { PaymentsController } from './payments.controller.js';
 import { FakeGateway } from './gateways/fake.gateway.js';
 import { RazorpayGateway } from './gateways/razorpay.gateway.js';
@@ -35,6 +36,8 @@ import { WebhookEvent, WebhookEventSchema } from './schemas/webhook-event.schema
     ]),
     // For BookingsService: amounts are read from the booking, never the client.
     EventsModule,
+    // A captured subscription payment has to start the period it paid for.
+    SubscriptionsModule,
   ],
   controllers: [PaymentsController],
   providers: [

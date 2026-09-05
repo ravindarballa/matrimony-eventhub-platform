@@ -16,16 +16,22 @@ import {
   BookingStatus,
   ErrorCode,
   GatewayEvent,
+  GST_BPS,
+  PLANS,
   PaymentMilestone,
   PaymentStatus,
+  PlanCode,
   type Paisa,
   type PaymentDto,
   type PaymentIntentDto,
+  type Plan,
   type PaymentScheduleEntry,
+  type SubscriptionIntentDto,
   type RefundDto,
   type WebhookAck,
 } from '@eventhub/contracts';
 
+import { EntitlementsService } from '../../subscriptions/services/entitlements.service.js';
 import { BookingsService } from '../../events/services/bookings.service.js';
 import type { BookingDocument } from '../../events/schemas/booking.schema.js';
 import {
@@ -60,6 +66,37 @@ const PAYABLE_STATUSES: Record<PaymentMilestone, BookingStatus[]> = {
   INSTALMENT: [BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS],
 };
 
+/**
+ * A payment that is definitely for a booking.
+ *
+ * The schema makes the booking fields conditional on `purpose`, so this guard
+ * is what lets the booking paths keep their types instead of asserting with `!`
+ * at every use - and it fails loudly if a subscription payment ever reaches
+ * code that assumes a vendor.
+ */
+type BookingPayment = PaymentDocument & {
+  bookingId: Types.ObjectId;
+  vendorId: Types.ObjectId;
+  commissionBps: number;
+  milestone: PaymentMilestone;
+};
+
+function asBookingPayment(payment: PaymentDocument): BookingPayment {
+  if (
+    payment.purpose !== 'BOOKING' ||
+    !payment.bookingId ||
+    !payment.vendorId ||
+    payment.commissionBps === undefined ||
+    !payment.milestone
+  ) {
+    throw new ConflictException({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: 'That payment is not a booking payment.',
+    });
+  }
+  return payment as BookingPayment;
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -71,6 +108,7 @@ export class PaymentsService {
     private readonly webhookEvents: Model<WebhookEventDocument>,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     private readonly bookings: BookingsService,
+    private readonly entitlements: EntitlementsService,
     private readonly commission: CommissionService,
     private readonly ledger: LedgerService,
     private readonly events: EventEmitter2,
@@ -168,6 +206,91 @@ export class PaymentsService {
     return Math.max(0, target - booking.paidAmount) as Paisa;
   }
 
+  /**
+   * Opens a checkout for a plan.
+   *
+   * The price comes from the plan table, never from the request - the same rule
+   * the booking side follows, for the same reason. GST is added on top rather
+   * than carved out, so the member sees one number to pay and the books can
+   * keep the platform's share separate from the government's.
+   */
+  async createSubscriptionIntent(
+    userId: string,
+    planCode: PlanCode,
+    idempotencyKey: string,
+  ): Promise<SubscriptionIntentDto> {
+    const plan = PLANS[planCode];
+    if (!plan || plan.code === PlanCode.FREE) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'That is not a plan that can be bought.',
+      });
+    }
+
+    const net = plan.price;
+    const gst = Math.round((net * GST_BPS) / 10_000) as Paisa;
+    const gross = (net + gst) as Paisa;
+
+    // An abandoned checkout for the same plan is reusable until it expires.
+    const open = await this.payments.findOne({
+      customerId: new Types.ObjectId(userId),
+      purpose: 'SUBSCRIPTION',
+      planCode,
+      status: { $in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
+      expiresAt: { $gt: new Date() },
+    });
+    if (open) return this.toSubscriptionIntent(open, plan);
+
+    const order = await this.gateway.createOrder({
+      amount: gross,
+      receipt: `sub_${userId}_${planCode.toLowerCase()}`,
+      notes: { userId, plan: planCode },
+    });
+
+    try {
+      const created = await this.payments.create({
+        purpose: 'SUBSCRIPTION',
+        customerId: new Types.ObjectId(userId),
+        planCode,
+        amount: gross,
+        gstAmount: gst,
+        status: PaymentStatus.CREATED,
+        gatewayOrderId: order.orderId,
+        idempotencyKey,
+        expiresAt: new Date(Date.now() + INTENT_TTL_MS),
+      });
+      return this.toSubscriptionIntent(created, plan);
+    } catch (e) {
+      if (isDuplicateKey(e)) {
+        const existing = await this.payments.findOne({ idempotencyKey });
+        if (existing) return this.toSubscriptionIntent(existing, plan);
+      }
+      throw e;
+    }
+  }
+
+  private toSubscriptionIntent(
+    payment: PaymentDocument,
+    plan: Plan,
+  ): SubscriptionIntentDto {
+    const gst = (payment.gstAmount ?? 0) as Paisa;
+    return {
+      paymentId: payment.id as string,
+      gatewayOrderId: payment.gatewayOrderId,
+      gatewayKeyId: this.gateway.publishableKey(),
+      currency: 'INR',
+      quote: {
+        planCode: plan.code,
+        planName: plan.name,
+        net: (payment.amount - gst) as Paisa,
+        gst,
+        gross: payment.amount as Paisa,
+        durationDays: plan.durationDays,
+      },
+      expiresAt: payment.expiresAt.toISOString(),
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Webhook
   // ---------------------------------------------------------------------------
@@ -263,10 +386,67 @@ export class PaymentsService {
       return;
     }
 
+    if (payment.purpose === 'SUBSCRIPTION') {
+      await this.captureSubscription(payment, verified);
+      return;
+    }
+
+    const booking = asBookingPayment(payment);
     const split = this.commission.split(
-      payment.amount as Paisa,
-      payment.commissionBps,
+      booking.amount as Paisa,
+      booking.commissionBps,
     );
+
+    const session = await this.conn.startSession();
+    try {
+      await session.withTransaction(async () => {
+        booking.status = PaymentStatus.CAPTURED;
+        booking.gatewayPaymentId = verified.paymentId;
+        booking.method = verified.method;
+        booking.paidAt = new Date();
+        await booking.save({ session });
+
+        await this.ledger.postCapture(split, {
+          paymentId: booking._id,
+          bookingId: booking.bookingId,
+          vendorId: booking.vendorId,
+          session,
+        });
+
+        // Same transaction as the ledger: a confirmed booking with no
+        // accounting behind it, or the reverse, must not be possible.
+        await this.bookings.applyCapture(
+          booking.bookingId.toString(),
+          booking.amount as Paisa,
+          session,
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    this.events.emit('payment.captured', {
+      paymentId: booking.id as string,
+      bookingId: booking.bookingId.toString(),
+      milestone: booking.milestone,
+      amount: booking.amount,
+      split,
+    });
+  }
+
+  /**
+   * A captured subscription payment: bank the money and start the period.
+   *
+   * The ledger entry and the subscription start in one transaction, because a
+   * member who paid and got no plan, or a plan nobody paid for, are both
+   * expensive to discover later.
+   */
+  private async captureSubscription(
+    payment: PaymentDocument,
+    verified: VerifiedWebhook,
+  ): Promise<void> {
+    const gst = (payment.gstAmount ?? 0) as Paisa;
+    const net = (payment.amount - gst) as Paisa;
 
     const session = await this.conn.startSession();
     try {
@@ -277,31 +457,30 @@ export class PaymentsService {
         payment.paidAt = new Date();
         await payment.save({ session });
 
-        await this.ledger.postCapture(split, {
+        await this.ledger.postSubscription(net, gst, {
           paymentId: payment._id,
-          bookingId: payment.bookingId,
-          vendorId: payment.vendorId,
+          planCode: payment.planCode ?? 'UNKNOWN',
           session,
         });
-
-        // Same transaction as the ledger: a confirmed booking with no
-        // accounting behind it, or the reverse, must not be possible.
-        await this.bookings.applyCapture(
-          payment.bookingId.toString(),
-          payment.amount as Paisa,
-          session,
-        );
       });
     } finally {
       await session.endSession();
     }
 
-    this.events.emit('payment.captured', {
+    // Outside the transaction: the subscription collection is not part of the
+    // payments module, and a grant is safely repeatable.
+    await this.entitlements.grant(
+      payment.customerId.toString(),
+      payment.planCode as PlanCode,
+      undefined,
+      payment._id,
+    );
+
+    this.events.emit('subscription.activated', {
       paymentId: payment.id as string,
-      bookingId: payment.bookingId.toString(),
-      milestone: payment.milestone,
+      userId: payment.customerId.toString(),
+      plan: payment.planCode,
       amount: payment.amount,
-      split,
     });
   }
 
@@ -319,7 +498,7 @@ export class PaymentsService {
 
     this.events.emit('payment.failed', {
       paymentId: payment.id as string,
-      bookingId: payment.bookingId.toString(),
+      bookingId: payment.bookingId?.toString(),
       reason: payment.failureReason,
     });
   }
@@ -410,6 +589,14 @@ export class PaymentsService {
     const payment = await this.payments.findById(paymentId);
     if (!payment) throw new NotFoundException();
 
+    if (payment.purpose !== 'BOOKING') {
+      throw new ConflictException({
+        code: ErrorCode.PAY_NOT_REFUNDABLE,
+        message:
+          'Subscription refunds are handled by support, not through this route.',
+      });
+    }
+
     if (
       payment.status !== PaymentStatus.CAPTURED &&
       payment.status !== PaymentStatus.PARTIALLY_REFUNDED
@@ -468,7 +655,7 @@ export class PaymentsService {
 
     this.events.emit('payment.refunded', {
       paymentId,
-      bookingId: payment.bookingId.toString(),
+      bookingId: payment.bookingId?.toString(),
       amount: result.amount,
       status: result.status,
     });
@@ -545,13 +732,14 @@ export class PaymentsService {
     amount: Paisa,
     session: ClientSession,
   ): Promise<void> {
+    const booking = asBookingPayment(payment);
     await this.ledger.postRefund(
       refundId,
-      this.commission.reverse(amount, payment.commissionBps),
+      this.commission.reverse(amount, booking.commissionBps),
       {
-        paymentId: payment._id,
-        bookingId: payment.bookingId,
-        vendorId: payment.vendorId,
+        paymentId: booking._id,
+        bookingId: booking.bookingId,
+        vendorId: booking.vendorId,
         session,
       },
     );
@@ -656,24 +844,28 @@ export class PaymentsService {
     return result.modifiedCount;
   }
 
+  /** A booking checkout. Subscription checkouts have their own shape. */
   private toIntent(payment: PaymentDocument): PaymentIntentDto {
+    const booking = asBookingPayment(payment);
     return {
       paymentId: payment.id as string,
       gatewayOrderId: payment.gatewayOrderId,
       gatewayKeyId: this.gateway.publishableKey(),
       amount: payment.amount as Paisa,
       currency: 'INR',
-      milestone: payment.milestone,
-      bookingId: payment.bookingId.toString(),
-      expiresAt: payment.expiresAt.toISOString(),
+      milestone: booking.milestone,
+      bookingId: booking.bookingId.toString(),
+      expiresAt: booking.expiresAt.toISOString(),
     };
   }
 
   private toDto(payment: PaymentDocument): PaymentDto {
     return {
       id: payment.id as string,
-      bookingId: payment.bookingId.toString(),
-      milestone: payment.milestone,
+      purpose: payment.purpose,
+      bookingId: payment.bookingId?.toString() ?? null,
+      milestone: payment.milestone ?? null,
+      planCode: payment.planCode ?? null,
       amount: payment.amount as Paisa,
       status: payment.status,
       method: payment.method ?? null,

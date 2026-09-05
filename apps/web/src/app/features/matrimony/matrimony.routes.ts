@@ -35,6 +35,11 @@ export default [
           import('./pages/shortlist-page').then((m) => m.ShortlistPage),
       },
       {
+        path: 'plans',
+        title: 'Plans · Matrimony EventHub',
+        loadComponent: () => import('./pages/plans-page').then((m) => m.PlansPage),
+      },
+      {
         path: 'profile/edit',
         title: 'Your profile · Matrimony EventHub',
         loadComponent: () =>

@@ -41,6 +41,7 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
         <a routerLink="/matrimony/interests" routerLinkActive="on">Interests</a>
         <a routerLink="/matrimony/shortlist" routerLinkActive="on">Shortlist</a>
         <a routerLink="/matrimony/profile/edit" routerLinkActive="on">My profile</a>
+        <a routerLink="/matrimony/plans" routerLinkActive="on">Plans</a>
       </nav>
 
       <a class="account" routerLink="/account" title="Account settings">Account</a>

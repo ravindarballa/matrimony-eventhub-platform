@@ -9,7 +9,9 @@ import type { INestApplication } from '@nestjs/common';
 import {
   AvailabilityStatus,
   BookingStatus,
+  GST_BPS,
   LedgerAccount,
+  PLANS,
   PaymentMilestone,
   PaymentStatus,
   type Paisa,
@@ -17,6 +19,7 @@ import {
 
 import configuration from '../src/config/configuration.js';
 import { PaymentsModule } from '../src/modules/payments/payments.module.js';
+import { EntitlementsService } from '../src/modules/subscriptions/services/entitlements.service.js';
 import { PaymentsService } from '../src/modules/payments/services/payments.service.js';
 import { LedgerService } from '../src/modules/payments/services/ledger.service.js';
 import { FakeGateway } from '../src/modules/payments/gateways/fake.gateway.js';
@@ -24,6 +27,7 @@ import { PAYMENT_GATEWAY } from '../src/modules/payments/gateways/payment-gatewa
 import { Payment } from '../src/modules/payments/schemas/payment.schema.js';
 import { LedgerEntry } from '../src/modules/payments/schemas/ledger-entry.schema.js';
 import { WebhookEvent } from '../src/modules/payments/schemas/webhook-event.schema.js';
+import { Subscription } from '../src/modules/subscriptions/schemas/subscription.schema.js';
 import { BookingsService } from '../src/modules/events/services/bookings.service.js';
 import { Quote } from '../src/modules/events/schemas/quote.schema.js';
 import { Booking } from '../src/modules/events/schemas/booking.schema.js';
@@ -46,12 +50,14 @@ describe('Payments (e2e)', () => {
   let mongo: MongoMemoryReplSet;
   let payments: PaymentsService;
   let ledger: LedgerService;
+  let entitlements: EntitlementsService;
   let bookingsService: BookingsService;
   let gateway: FakeGateway;
 
   let paymentModel: Model<PaymentDocument>;
   let ledgerModel: Model<LedgerEntryDocument>;
   let webhookModel: Model<WebhookEventDocument>;
+  let subscriptionModel: Model<Record<string, unknown>>;
   let quotes: Model<QuoteDocument>;
   let bookings: Model<BookingDocument>;
   let availability: Model<VendorAvailabilityDocument>;
@@ -80,12 +86,14 @@ describe('Payments (e2e)', () => {
 
     payments = moduleRef.get(PaymentsService);
     ledger = moduleRef.get(LedgerService);
+    entitlements = moduleRef.get(EntitlementsService);
     bookingsService = moduleRef.get(BookingsService);
     gateway = moduleRef.get<FakeGateway>(PAYMENT_GATEWAY);
 
     paymentModel = moduleRef.get(getModelToken(Payment.name));
     ledgerModel = moduleRef.get(getModelToken(LedgerEntry.name));
     webhookModel = moduleRef.get(getModelToken(WebhookEvent.name));
+    subscriptionModel = moduleRef.get(getModelToken(Subscription.name));
     quotes = moduleRef.get(getModelToken(Quote.name));
     bookings = moduleRef.get(getModelToken(Booking.name));
     availability = moduleRef.get(getModelToken(VendorAvailability.name));
@@ -111,6 +119,7 @@ describe('Payments (e2e)', () => {
       paymentModel.deleteMany({}),
       ledgerModel.deleteMany({}),
       webhookModel.deleteMany({}),
+      subscriptionModel.deleteMany({}),
       quotes.deleteMany({}),
       bookings.deleteMany({}),
       availability.deleteMany({}),
@@ -588,6 +597,146 @@ describe('Payments (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
+
+  describe('subscription checkout', () => {
+    const buyer = () => new Types.ObjectId().toString();
+
+    it('prices the plan from the table and adds GST on top', async () => {
+      const intent = await payments.createSubscriptionIntent(
+        buyer(),
+        'MATRIMONY_3M',
+        'sub-key-0001',
+      );
+
+      // 1,999 + 18% = 2,358.82
+      expect(intent.quote.net).toBe(PLANS.MATRIMONY_3M.price);
+      expect(intent.quote.gst).toBe(
+        Math.round((PLANS.MATRIMONY_3M.price * GST_BPS) / 10_000),
+      );
+      expect(intent.quote.gross).toBe(intent.quote.net + intent.quote.gst);
+      expect(intent.gatewayOrderId).toMatch(/^order_fake_/);
+    });
+
+    it('refuses to sell the free plan', async () => {
+      await expect(
+        payments.createSubscriptionIntent(buyer(), 'FREE', 'sub-key-free'),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('hands back an open checkout rather than opening a second order', async () => {
+      const user = buyer();
+      const first = await payments.createSubscriptionIntent(
+        user,
+        'MATRIMONY_6M',
+        'sub-key-0002',
+      );
+      const second = await payments.createSubscriptionIntent(
+        user,
+        'MATRIMONY_6M',
+        'sub-key-0003',
+      );
+
+      expect(second.paymentId).toBe(first.paymentId);
+      expect(await paymentModel.countDocuments({ purpose: 'SUBSCRIPTION' })).toBe(1);
+    });
+
+    it('activates the plan when the payment is captured', async () => {
+      const user = buyer();
+      const intent = await payments.createSubscriptionIntent(
+        user,
+        'MATRIMONY_3M',
+        'sub-key-0004',
+      );
+
+      expect((await entitlements.snapshot(user)).isPaid).toBe(false);
+
+      await deliver(
+        gateway.capturedEvent(intent.gatewayOrderId, intent.quote.gross as Paisa),
+      );
+
+      const after = await entitlements.snapshot(user);
+      expect(after.isPaid).toBe(true);
+      expect(after.plan).toBe('MATRIMONY_3M');
+      expect(after.subscription!.source).toBe('PAID');
+      expect(after.interests.limit).toBeNull();
+    });
+
+    /**
+     * Subscription revenue must never land in escrow. Escrow is money held on
+     * behalf of a vendor; this is money the platform keeps, and mixing them
+     * makes escrow impossible to reconcile against gateway settlements.
+     */
+    it('banks the money away from escrow, with GST split out', async () => {
+      const user = buyer();
+      const intent = await payments.createSubscriptionIntent(
+        user,
+        'MATRIMONY_12M',
+        'sub-key-0005',
+      );
+      await deliver(
+        gateway.capturedEvent(intent.gatewayOrderId, intent.quote.gross as Paisa),
+      );
+
+      expect(await ledger.balance(LedgerAccount.PLATFORM_CASH)).toBe(
+        intent.quote.gross,
+      );
+      expect(await ledger.balance(LedgerAccount.SUBSCRIPTION_INCOME)).toBe(
+        -intent.quote.net,
+      );
+      expect(await ledger.balance(LedgerAccount.GST_PAYABLE)).toBe(
+        -intent.quote.gst,
+      );
+      // Not a paisa of it went near escrow or a vendor.
+      expect(await ledger.balance(LedgerAccount.ESCROW)).toBe(0);
+      expect(await ledger.balance(LedgerAccount.VENDOR_PAYABLE)).toBe(0);
+
+      const rows = await ledgerModel.find({ refType: 'subscription' });
+      const debits = rows.reduce((n, r) => n + r.debit, 0);
+      const credits = rows.reduce((n, r) => n + r.credit, 0);
+      expect(debits).toBe(credits);
+    });
+
+    it('activates once when the gateway delivers the event twice', async () => {
+      const user = buyer();
+      const intent = await payments.createSubscriptionIntent(
+        user,
+        'MATRIMONY_3M',
+        'sub-key-0006',
+      );
+      const event = gateway.capturedEvent(
+        intent.gatewayOrderId,
+        intent.quote.gross as Paisa,
+      );
+
+      await deliver(event);
+      await deliver(event);
+
+      // One period, not two stacked on top of each other.
+      expect(
+        await subscriptionModel.countDocuments({
+          userId: new Types.ObjectId(user),
+          status: 'ACTIVE',
+        }),
+      ).toBe(1);
+      expect(await ledgerModel.countDocuments({ refType: 'subscription' })).toBe(3);
+    });
+
+    it('will not refund a subscription through the booking route', async () => {
+      const user = buyer();
+      const intent = await payments.createSubscriptionIntent(
+        user,
+        'MATRIMONY_3M',
+        'sub-key-0007',
+      );
+      await deliver(
+        gateway.capturedEvent(intent.gatewayOrderId, intent.quote.gross as Paisa),
+      );
+
+      await expect(payments.refund(intent.paymentId)).rejects.toMatchObject({
+        status: 409,
+      });
+    });
+  });
 
   describe('reads', () => {
     it('will not show a payment to anyone but its owner', async () => {

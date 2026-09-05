@@ -16,8 +16,9 @@ import {
 
 interface PostContext {
   paymentId: Types.ObjectId;
-  bookingId: Types.ObjectId;
-  vendorId: Types.ObjectId;
+  /** Absent for subscription revenue, which belongs to no booking. */
+  bookingId?: Types.ObjectId;
+  vendorId?: Types.ObjectId;
   session?: ClientSession;
 }
 
@@ -147,6 +148,44 @@ export class LedgerService {
       { $group: { _id: null, total: { $sum: '$debit' } } },
     ]);
     return (row?.total ?? 0) as Paisa;
+  }
+
+  /**
+   * Records a subscription sale.
+   *
+   * Deliberately nowhere near escrow: escrow is money held on behalf of a
+   * vendor, and this is money the platform has earned and keeps. Posting them
+   * to the same account would make the escrow balance impossible to reconcile
+   * against gateway settlements, because it would include money nobody is owed.
+   *
+   * The GST is split out because it is not revenue - it is collected on behalf
+   * of the government and paid onward.
+   */
+  async postSubscription(
+    net: Paisa,
+    gst: Paisa,
+    ctx: PostContext & { planCode: string },
+  ): Promise<void> {
+    await this.post(`subscription:${ctx.paymentId.toString()}`, 'subscription', ctx, [
+      {
+        account: LedgerAccount.PLATFORM_CASH,
+        debit: (net + gst) as Paisa,
+        credit: ZERO,
+        description: `Subscription payment received (${ctx.planCode})`,
+      },
+      {
+        account: LedgerAccount.SUBSCRIPTION_INCOME,
+        debit: ZERO,
+        credit: net,
+        description: 'Subscription revenue',
+      },
+      {
+        account: LedgerAccount.GST_PAYABLE,
+        debit: ZERO,
+        credit: gst,
+        description: 'GST collected on a subscription',
+      },
+    ]);
   }
 
   /** Sums an account. Reconciliation reads this; nothing writes through it. */

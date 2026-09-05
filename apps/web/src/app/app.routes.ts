@@ -14,30 +14,22 @@ export const routes: Routes = [
   {
     path: 'matrimony',
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/placeholder-page').then((m) => m.PlaceholderPage),
-    data: { module: 'Matrimony', code: 'MAT' },
+    loadChildren: () => import('./features/matrimony/matrimony.routes'),
   },
   {
     path: 'customer',
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/placeholder-page').then((m) => m.PlaceholderPage),
-    data: { module: 'Customer portal', code: 'CUS' },
+    loadChildren: () => import('./features/customer/customer.routes'),
   },
   {
     path: 'vendor',
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/placeholder-page').then((m) => m.PlaceholderPage),
-    data: { module: 'Vendor portal', code: 'VND' },
+    loadChildren: () => import('./features/vendor/vendor.routes'),
   },
   {
     path: 'admin',
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/placeholder-page').then((m) => m.PlaceholderPage),
-    data: { module: 'Admin portal', code: 'ADM' },
+    loadChildren: () => import('./features/admin/admin.routes'),
   },
   {
     path: 'forbidden',

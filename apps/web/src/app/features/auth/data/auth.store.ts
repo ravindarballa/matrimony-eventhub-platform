@@ -41,6 +41,8 @@ export const AuthStore = signalStore(
     isVendorVerified: computed(() => user()?.vendor?.kycStatus === 'VERIFIED'),
     /** False for anyone who registered and never set one - i.e. by default. */
     hasPassword: computed(() => user()?.hasPassword ?? false),
+    isCustomer: computed(() => (user()?.roles ?? []).includes('CUSTOMER')),
+    isSeeker: computed(() => (user()?.roles ?? []).includes('SEEKER')),
   })),
   withMethods((store) => {
     const api = inject(AuthApi);
@@ -76,6 +78,19 @@ export const AuthStore = signalStore(
           patchState(store, { status: 'idle' });
           throw err;
         }
+      },
+
+      /**
+       * Takes a seeker into the wedding side of the platform.
+       *
+       * The refresh afterwards is not optional: roles live in the access token,
+       * and the server's guards read them from there. Without a new token the
+       * client would believe it had the role while every API call it made was
+       * refused - which looks like a broken product rather than a missing role.
+       */
+      async becomeCustomer(): Promise<void> {
+        await firstValueFrom(api.addRole('CUSTOMER'));
+        apply(await firstValueFrom(api.refresh()));
       },
 
       /** Sign in with a one-time code, for an account with no password yet. */

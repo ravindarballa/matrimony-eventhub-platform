@@ -93,6 +93,16 @@ export class AuthApi {
       .pipe(map((r) => r.data));
   }
 
+  /**
+   * Adds a role to the signed-in account. The server allows only the harmless
+   * ones this way - SEEKER and CUSTOMER - so this cannot be an escalation path.
+   */
+  addRole(role: 'SEEKER' | 'CUSTOMER'): Observable<SessionUser> {
+    return this.http
+      .post<Envelope<SessionUser>>(`${this.base}/roles`, { role })
+      .pipe(map((r) => r.data));
+  }
+
   /** Called once at bootstrap to restore a session from the refresh cookie. */
   refresh(): Observable<AuthResponse> {
     return this.http

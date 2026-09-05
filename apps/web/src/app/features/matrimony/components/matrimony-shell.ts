@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { httpResource } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -62,7 +62,9 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
       } @else if (p.status === 'ENGAGED') {
         <aside class="banner good" role="status">
           <strong>Congratulations.</strong> Your profile is marked engaged.
-          <a routerLink="/customer/wedding">Start planning the wedding</a>
+          <button type="button" class="link" (click)="planWedding()">
+            Start planning the wedding
+          </button>
         </aside>
       }
     } @else if (!profile.isLoading()) {
@@ -70,6 +72,16 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
         <strong>You have no profile yet.</strong>
         Search and interests need one.
         <a routerLink="/matrimony/profile/edit">Create it</a>
+      </aside>
+    }
+
+    @if (!store.isCustomer()) {
+      <aside class="banner plan" role="status">
+        Planning a wedding as well?
+        <button type="button" class="link" (click)="planWedding()">
+          Open the wedding planner
+        </button>
+        — venues, caterers and photographers, on the same account.
       </aside>
     }
 
@@ -97,15 +109,31 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
               padding: 0.7rem 1.25rem; font-size: 0.88rem; }
     .banner.good { background: #e6f4ea; border-bottom-color: #c8e6c9; color: #1b5e20; }
     .banner a { color: inherit; margin-left: 0.4rem; }
+    .banner.plan { background: #eef1fb; border-bottom-color: #cfd6f2; color: #2f2d78; }
+    .link { border: none; background: none; padding: 0; font: inherit;
+            color: inherit; text-decoration: underline; cursor: pointer;
+            margin-left: 0.3rem; font-weight: 600; }
+    .link:disabled { opacity: 0.6; cursor: default; }
     @media (max-width: 720px) { .name { display: none; } }
   `,
 })
 export class MatrimonyShell {
   protected readonly store = inject(AuthStore);
   private readonly api = inject(MatrimonyApi);
+  private readonly router = inject(Router);
 
   protected readonly profile = httpResource<MatrimonyProfileDto | null>(
     () => this.api.meUrl,
     { parse: unwrap<MatrimonyProfileDto | null>, defaultValue: null },
   );
+
+  /**
+   * Grants the customer role if it is missing, then opens the planner. Doing it
+   * in that order is what stops the wedding side being a locked door for the
+   * seekers it is meant for.
+   */
+  protected async planWedding(): Promise<void> {
+    if (!this.store.isCustomer()) await this.store.becomeCustomer();
+    await this.router.navigateByUrl('/customer/wedding');
+  }
 }

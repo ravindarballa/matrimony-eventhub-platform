@@ -185,6 +185,15 @@ export class ProfilesService {
     profile.engagedAt = new Date();
     await profile.save();
 
+    // Getting engaged is precisely the moment a seeker becomes a wedding
+    // customer, so the role is granted here rather than left for them to
+    // discover they lack. Without it the handoff below leads to a locked door:
+    // the customer portal is role-guarded, and a seeker would be bounced.
+    await this.users.updateOne(
+      { _id: profile.userId },
+      { $addToSet: { roles: 'CUSTOMER' } },
+    );
+
     this.events.emit('matrimony.engaged', {
       profileId: profile.id as string,
       userId,

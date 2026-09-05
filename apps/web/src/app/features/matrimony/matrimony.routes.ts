@@ -35,6 +35,11 @@ export default [
           import('./pages/shortlist-page').then((m) => m.ShortlistPage),
       },
       {
+        path: 'chat',
+        title: 'Conversations · Matrimony EventHub',
+        loadComponent: () => import('./pages/chat-page').then((m) => m.ChatPage),
+      },
+      {
         path: 'plans',
         title: 'Plans · Matrimony EventHub',
         loadComponent: () => import('./pages/plans-page').then((m) => m.PlansPage),

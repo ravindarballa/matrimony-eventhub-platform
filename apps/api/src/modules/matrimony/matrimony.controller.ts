@@ -21,12 +21,14 @@ import { Throttle } from '../../core/throttle/throttle.guard.js';
 import { ProfilesService } from './services/profiles.service.js';
 import { ProfileSearchService } from './services/profile-search.service.js';
 import { InterestsService } from './services/interests.service.js';
+import { ChatService } from './services/chat.service.js';
 import {
   BlockDto,
   InterestTabQuery,
   PartnerPreferencesDto,
   ProfileSearchDto,
   SendInterestDto,
+  SendMessageDto,
   ShortlistDto,
   UpsertProfileDto,
 } from './dto/matrimony.dto.js';
@@ -38,6 +40,7 @@ export class MatrimonyController {
     private readonly profiles: ProfilesService,
     private readonly search: ProfileSearchService,
     private readonly interests: InterestsService,
+    private readonly chat: ChatService,
   ) {}
 
   // ------------------------------------------------------------------ profile
@@ -170,6 +173,39 @@ export class MatrimonyController {
     @CurrentUser('sub') userId: string,
   ) {
     return this.interests.removeShortlist(userId, profileId);
+  }
+
+  // ---------------------------------------------------------------------- chat
+
+  @Get('chat')
+  @ApiOperation({ summary: 'Conversations, most recently active first' })
+  listThreads(@CurrentUser('sub') userId: string) {
+    return this.chat.listThreads(userId);
+  }
+
+  @Get('chat/unread-count')
+  chatUnread(@CurrentUser('sub') userId: string) {
+    return this.chat.unreadCount(userId);
+  }
+
+  @Get('chat/:threadId')
+  @ApiOperation({ summary: 'One conversation; opening it marks it read' })
+  messages(
+    @Param('threadId') threadId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.chat.messagesIn(userId, threadId);
+  }
+
+  @Post('chat/:threadId')
+  @Throttle({ limit: 60, ttlMs: 60_000 })
+  @ApiOperation({ summary: 'Send a message; this is what a plan pays for' })
+  sendMessage(
+    @Param('threadId') threadId: string,
+    @Body() dto: SendMessageDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.chat.send(userId, threadId, dto.body);
   }
 
   // ------------------------------------------------------------------- safety

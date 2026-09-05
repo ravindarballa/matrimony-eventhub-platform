@@ -88,9 +88,8 @@ type Tab = 'received' | 'sent' | 'accepted';
                 }
               }
               @case ('accepted') {
-                <span class="state good">
-                  Accepted — contact details are on their profile
-                </span>
+                <span class="state good">Accepted ✓</span>
+                <a mat-flat-button routerLink="/matrimony/chat">Open conversation</a>
               }
             }
           </div>

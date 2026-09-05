@@ -341,3 +341,41 @@ export const MIN_AGE_BY_GENDER: Readonly<Record<Gender, number>> = {
  * only so existing imports keep working.
  */
 export { FREE_DAILY_INTERESTS as FREE_DAILY_INTEREST_QUOTA } from './subscriptions.js';
+
+// ---------------------------------------------------------------------------
+// Conversations
+// ---------------------------------------------------------------------------
+
+/**
+ * A conversation between two profiles.
+ *
+ * Threads are created by the platform when an interest is accepted, never by a
+ * member reaching out cold - which is what stops chat becoming an unsolicited
+ * inbox and is the whole reason families are willing to have one.
+ */
+export interface ChatThreadDto {
+  id: string;
+  /** The other person, from the reader's point of view. */
+  counterpart: ProfileCardDto;
+  lastMessageAt?: string | null;
+  lastMessagePreview?: string | null;
+  unreadCount: number;
+  createdAt: string;
+}
+
+export interface ChatMessageDto {
+  id: string;
+  threadId: string;
+  /** True when the reader wrote it. */
+  mine: boolean;
+  body: string;
+  sentAt: string;
+  readAt?: string | null;
+}
+
+export interface SendMessageRequest {
+  body: string;
+}
+
+/** Nobody needs a longer message than this to arrange a meeting. */
+export const MAX_MESSAGE_LENGTH = 2000;

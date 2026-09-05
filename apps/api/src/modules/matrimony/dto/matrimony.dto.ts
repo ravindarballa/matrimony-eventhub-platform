@@ -18,6 +18,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  MAX_MESSAGE_LENGTH,
   Diet,
   Gender,
   MaritalStatus,
@@ -195,4 +196,12 @@ export class ShortlistDto {
 export class BlockDto {
   @ApiProperty() @IsMongoId() targetProfileId!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) reason?: string;
+}
+
+export class SendMessageDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MAX_MESSAGE_LENGTH)
+  body!: string;
 }

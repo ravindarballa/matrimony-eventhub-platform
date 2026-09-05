@@ -17,6 +17,7 @@ import { ProfilesService } from '../src/modules/matrimony/services/profiles.serv
 import { ProfileSearchService } from '../src/modules/matrimony/services/profile-search.service.js';
 import { InterestsService } from '../src/modules/matrimony/services/interests.service.js';
 import { EntitlementsService } from '../src/modules/subscriptions/services/entitlements.service.js';
+import { ChatService } from '../src/modules/matrimony/services/chat.service.js';
 import { MatrimonyProfile } from '../src/modules/matrimony/schemas/matrimony-profile.schema.js';
 import {
   Block,
@@ -26,6 +27,10 @@ import {
 } from '../src/modules/matrimony/schemas/matrimony-social.schema.js';
 import { User } from '../src/modules/auth/schemas/user.schema.js';
 import { Subscription } from '../src/modules/subscriptions/schemas/subscription.schema.js';
+import {
+  ChatMessage,
+  ChatThread,
+} from '../src/modules/matrimony/schemas/chat.schema.js';
 import type { MatrimonyProfileDocument } from '../src/modules/matrimony/schemas/matrimony-profile.schema.js';
 import type { UserDocument } from '../src/modules/auth/schemas/user.schema.js';
 import type {
@@ -47,6 +52,7 @@ describe('Matrimony (e2e)', () => {
   let search: ProfileSearchService;
   let interests: InterestsService;
   let entitlements: EntitlementsService;
+  let chat: ChatService;
 
   let profileModel: Model<MatrimonyProfileDocument>;
   let interestModel: Model<InterestDocument>;
@@ -54,6 +60,8 @@ describe('Matrimony (e2e)', () => {
   let blockModel: Model<BlockDocument>;
   let userModel: Model<UserDocument>;
   let subscriptionModel: Model<Record<string, unknown>>;
+  let threadModel: Model<Record<string, unknown>>;
+  let messageModel: Model<Record<string, unknown>>;
 
   beforeAll(async () => {
     mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
@@ -73,6 +81,7 @@ describe('Matrimony (e2e)', () => {
     search = moduleRef.get(ProfileSearchService);
     interests = moduleRef.get(InterestsService);
     entitlements = moduleRef.get(EntitlementsService);
+    chat = moduleRef.get(ChatService);
 
     profileModel = moduleRef.get(getModelToken(MatrimonyProfile.name));
     interestModel = moduleRef.get(getModelToken(Interest.name));
@@ -80,12 +89,15 @@ describe('Matrimony (e2e)', () => {
     blockModel = moduleRef.get(getModelToken(Block.name));
     userModel = moduleRef.get(getModelToken(User.name));
     subscriptionModel = moduleRef.get(getModelToken(Subscription.name));
+    threadModel = moduleRef.get(getModelToken(ChatThread.name));
+    messageModel = moduleRef.get(getModelToken(ChatMessage.name));
 
     await Promise.all([
       profileModel.syncIndexes(),
       interestModel.syncIndexes(),
       shortlistModel.syncIndexes(),
       blockModel.syncIndexes(),
+      threadModel.syncIndexes(),
       moduleRef.get<Model<unknown>>(getModelToken(PartnerPreference.name)).syncIndexes(),
     ]);
   }, 180_000);
@@ -103,6 +115,8 @@ describe('Matrimony (e2e)', () => {
       blockModel.deleteMany({}),
       userModel.deleteMany({}),
       subscriptionModel.deleteMany({}),
+      threadModel.deleteMany({}),
+      messageModel.deleteMany({}),
     ]);
   });
 
@@ -709,6 +723,173 @@ describe('Matrimony (e2e)', () => {
       await expect(
         interests.send(groom.userId, { toProfileId: bride.profileId }),
       ).rejects.toMatchObject({ status: 409 });
+    });
+  });
+
+  // --------------------------------------------------------------------- chat
+
+  describe('chat', () => {
+    /** Two profiles who have accepted each other, so a thread exists. */
+    const matched = async () => {
+      const bride = await seed({ gender: 'FEMALE', displayName: 'Anita' });
+      const groom = await seed({ gender: 'MALE', displayName: 'Rahul' });
+
+      const sent = await interests.send(groom.userId, {
+        toProfileId: bride.profileId,
+      });
+      await interests.accept(bride.userId, sent.id);
+
+      // The thread is opened by an event listener, which is not awaited.
+      for (let i = 0; i < 40 && (await threadModel.countDocuments()) === 0; i += 1) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      return { bride, groom };
+    };
+
+    it('opens a thread when an interest is accepted, and not before', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+
+      const sent = await interests.send(groom.userId, {
+        toProfileId: bride.profileId,
+      });
+      expect(await threadModel.countDocuments()).toBe(0);
+
+      await interests.accept(bride.userId, sent.id);
+      for (let i = 0; i < 40 && (await threadModel.countDocuments()) === 0; i += 1) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      expect(await threadModel.countDocuments()).toBe(1);
+
+      // Both sides see it.
+      expect(await chat.listThreads(groom.userId)).toHaveLength(1);
+      expect(await chat.listThreads(bride.userId)).toHaveLength(1);
+    });
+
+    it('shows each side the other person', async () => {
+      const { bride, groom } = await matched();
+
+      const hers = await chat.listThreads(bride.userId);
+      expect(hers[0]!.counterpart.displayName).toBe('Rahul');
+
+      const his = await chat.listThreads(groom.userId);
+      expect(his[0]!.counterpart.displayName).toBe('Anita');
+      void groom;
+    });
+
+    /**
+     * The rule the business rests on, and the one that has to be right: a free
+     * member may read every word sent to them, and may not send one back.
+     */
+    it('refuses to send on a free plan, but reading stays free', async () => {
+      const { bride, groom } = await matched();
+      await entitlements.grant(bride.userId, 'MATRIMONY_3M', 'test');
+
+      const thread = (await chat.listThreads(bride.userId))[0]!;
+      await chat.send(bride.userId, thread.id, 'Namaste, we liked the profile.');
+
+      // The free side can read it.
+      const asGroom = await chat.messagesIn(groom.userId, thread.id);
+      expect(asGroom).toHaveLength(1);
+      expect(asGroom[0]!.body).toBe('Namaste, we liked the profile.');
+      expect(asGroom[0]!.mine).toBe(false);
+
+      // And cannot answer.
+      await expect(
+        chat.send(groom.userId, thread.id, 'Thank you'),
+      ).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('lets a paid member send, and marks their own message as theirs', async () => {
+      const { groom } = await matched();
+      await entitlements.grant(groom.userId, 'MATRIMONY_6M', 'test');
+
+      const thread = (await chat.listThreads(groom.userId))[0]!;
+      const sent = await chat.send(groom.userId, thread.id, 'Shall we speak this evening?');
+
+      expect(sent.mine).toBe(true);
+      expect(sent.body).toBe('Shall we speak this evening?');
+    });
+
+    it('counts unread messages, and clears them when the thread is opened', async () => {
+      const { bride, groom } = await matched();
+      await entitlements.grant(bride.userId, 'MATRIMONY_3M', 'test');
+
+      const thread = (await chat.listThreads(bride.userId))[0]!;
+      await chat.send(bride.userId, thread.id, 'One');
+      await chat.send(bride.userId, thread.id, 'Two');
+
+      expect((await chat.unreadCount(groom.userId)).count).toBe(2);
+      // Her own messages are not unread for her.
+      expect((await chat.unreadCount(bride.userId)).count).toBe(0);
+
+      await chat.messagesIn(groom.userId, thread.id);
+      expect((await chat.unreadCount(groom.userId)).count).toBe(0);
+    });
+
+    it('shows the last message in the thread list', async () => {
+      const { bride, groom } = await matched();
+      await entitlements.grant(bride.userId, 'MATRIMONY_3M', 'test');
+
+      const thread = (await chat.listThreads(bride.userId))[0]!;
+      await chat.send(bride.userId, thread.id, 'Would Sunday suit you?');
+
+      const list = await chat.listThreads(groom.userId);
+      expect(list[0]!.lastMessagePreview).toBe('Would Sunday suit you?');
+      expect(list[0]!.unreadCount).toBe(1);
+    });
+
+    it('keeps a stranger out of a conversation that is not theirs', async () => {
+      const { bride } = await matched();
+      const stranger = await seed({ gender: 'MALE' });
+      await entitlements.grant(stranger.userId, 'MATRIMONY_12M', 'test');
+
+      const thread = (await chat.listThreads(bride.userId))[0]!;
+
+      await expect(
+        chat.messagesIn(stranger.userId, thread.id),
+      ).rejects.toMatchObject({ status: 403 });
+      await expect(
+        chat.send(stranger.userId, thread.id, 'hello'),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('hides the conversation once someone is blocked', async () => {
+      const { bride, groom } = await matched();
+      await entitlements.grant(groom.userId, 'MATRIMONY_3M', 'test');
+
+      await interests.block(bride.userId, groom.profileId, 'Not suitable');
+
+      expect(await chat.listThreads(bride.userId)).toHaveLength(0);
+      expect(await chat.listThreads(groom.userId)).toHaveLength(0);
+
+      const thread = await threadModel.findOne({});
+      await expect(
+        chat.send(groom.userId, String(thread!._id), 'still there?'),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('refuses an empty message', async () => {
+      const { groom } = await matched();
+      await entitlements.grant(groom.userId, 'MATRIMONY_3M', 'test');
+      const thread = (await chat.listThreads(groom.userId))[0]!;
+
+      await expect(chat.send(groom.userId, thread.id, '   ')).rejects.toMatchObject({
+        status: 400,
+      });
+    });
+
+    it('opens one thread even if the acceptance event is replayed', async () => {
+      const { bride, groom } = await matched();
+      const thread = await threadModel.findOne({});
+
+      // A redelivered event must be harmless.
+      await chat.onInterestAccepted({
+        interestId: String(thread!.interestId),
+        profileIds: [bride.profileId, groom.profileId],
+      });
+
+      expect(await threadModel.countDocuments()).toBe(1);
     });
   });
 

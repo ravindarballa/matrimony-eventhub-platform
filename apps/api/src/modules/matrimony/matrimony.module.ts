@@ -7,10 +7,17 @@ import { ProfileSearchService } from './services/profile-search.service.js';
 import { InterestsService } from './services/interests.service.js';
 import { RelationsService } from './services/relations.service.js';
 import { GunaService } from './services/guna.service.js';
+import { ChatService } from './services/chat.service.js';
 import {
   MatrimonyProfile,
   MatrimonyProfileSchema,
 } from './schemas/matrimony-profile.schema.js';
+import {
+  ChatMessage,
+  ChatMessageSchema,
+  ChatThread,
+  ChatThreadSchema,
+} from './schemas/chat.schema.js';
 import {
   Block,
   BlockSchema,
@@ -40,6 +47,8 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module.js';
       { name: Interest.name, schema: InterestSchema },
       { name: Shortlist.name, schema: ShortlistSchema },
       { name: Block.name, schema: BlockSchema },
+      { name: ChatThread.name, schema: ChatThreadSchema },
+      { name: ChatMessage.name, schema: ChatMessageSchema },
       { name: User.name, schema: UserSchema },
     ]),
     // Matrimony asks this what a member may do; it never checks for a plan itself.
@@ -52,6 +61,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module.js';
     InterestsService,
     RelationsService,
     GunaService,
+    ChatService,
   ],
   exports: [ProfilesService, GunaService],
 })

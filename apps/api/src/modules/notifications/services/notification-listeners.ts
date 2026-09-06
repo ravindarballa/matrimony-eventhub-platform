@@ -315,7 +315,9 @@ export class NotificationListeners {
   private async vendorOwner(vendorId: string): Promise<string | null> {
     if (!Types.ObjectId.isValid(vendorId)) return null;
     const vendor = await this.conn
-      .collection('vendors')
+      // Typed at the boundary: a raw driver collection is `any`, and letting
+      // that escape makes every field read downstream unchecked.
+      .collection<{ ownerId?: Types.ObjectId }>('vendors')
       .findOne(
         { _id: new Types.ObjectId(vendorId) },
         { projection: { ownerId: 1 } },

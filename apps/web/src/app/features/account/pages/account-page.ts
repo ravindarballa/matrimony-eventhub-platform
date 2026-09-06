@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { FormField, form, submit } from '@angular/forms/signals';
 import { minLength, pattern, required, schema, validate } from '@angular/forms/signals';

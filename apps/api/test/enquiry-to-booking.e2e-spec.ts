@@ -16,7 +16,6 @@ import {
 
 import { configureApp } from '../src/bootstrap.js';
 import { EventsModule } from '../src/modules/events/events.module.js';
-import { AuthModule } from '../src/modules/auth/auth.module.js';
 import { OtpService } from '../src/modules/auth/services/otp.service.js';
 import { User } from '../src/modules/auth/schemas/user.schema.js';
 import { VendorsModule } from '../src/modules/vendors/vendors.module.js';

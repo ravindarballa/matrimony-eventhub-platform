@@ -6,7 +6,6 @@ import {
   HttpStatus,
   Injectable,
   Module,
-  Param,
   Post,
 } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';

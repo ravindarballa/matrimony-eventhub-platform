@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { MediaModule } from '../media/media.module.js';
 
 import { VendorsController } from './vendors.controller.js';
 import { VendorsService } from './services/vendors.service.js';
@@ -23,6 +24,8 @@ import {
  */
 @Module({
   imports: [
+    // Portfolio photos go through the shared file storage boundary.
+    MediaModule,
     MongooseModule.forFeature([
       { name: Vendor.name, schema: VendorSchema },
       { name: VendorServiceEntity.name, schema: VendorServiceSchema },

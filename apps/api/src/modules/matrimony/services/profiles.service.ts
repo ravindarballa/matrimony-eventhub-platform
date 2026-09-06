@@ -12,10 +12,8 @@ import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import {
-  ALLOWED_PHOTO_MIME_TYPES,
   Capability,
   ErrorCode,
-  MAX_PHOTO_BYTES,
   MAX_PROFILE_PHOTOS,
   MIN_AGE_BY_GENDER,
   PhotoPrivacy,
@@ -37,6 +35,7 @@ import {
   type FileStorage,
   type UploadedImage,
 } from '../../media/storage/file-storage.interface.js';
+import { ImageValidationService } from '../../media/services/image-validation.service.js';
 import {
   MatrimonyProfile,
   type MatrimonyProfileDocument,
@@ -78,6 +77,7 @@ export class ProfilesService {
     private readonly preferences: Model<PartnerPreferenceDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
+    private readonly images: ImageValidationService,
     private readonly relations: RelationsService,
     private readonly entitlements: EntitlementsService,
     private readonly guna: GunaService,
@@ -281,7 +281,7 @@ export class ProfilesService {
       });
     }
 
-    this.assertUsableImage(file);
+    this.images.assertUsable(file);
 
     const stored = await this.storage.put({
       prefix: 'profile-photos',
@@ -373,33 +373,6 @@ export class ProfilesService {
     return this.toOwnDto(profile);
   }
 
-  /**
-   * Whether these bytes are an image the platform accepts.
-   *
-   * The declared content type is checked against the file's own magic bytes,
-   * because the header is supplied by the client and a caller who wants to
-   * store something else will simply claim it is a JPEG. What actually stops
-   * that is reading the first few bytes.
-   */
-  private assertUsableImage(file: UploadedImage): void {
-    const fail = (message: string): never => {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_FAILED,
-        fields: { file: message },
-      });
-    };
-
-    if (!file.buffer?.length) fail('That file is empty.');
-    if (file.size > MAX_PHOTO_BYTES) {
-      fail(`Photos must be under ${Math.floor(MAX_PHOTO_BYTES / (1024 * 1024))} MB.`);
-    }
-    if (!ALLOWED_PHOTO_MIME_TYPES.includes(file.mimetype as never)) {
-      fail('Use a JPEG, PNG or WebP image.');
-    }
-    if (sniffImageType(file.buffer) !== file.mimetype) {
-      fail('That file is not the image type it claims to be.');
-    }
-  }
   async requireOwn(userId: string): Promise<MatrimonyProfileDocument> {
     if (!Types.ObjectId.isValid(userId)) throw new NotFoundException();
     const profile = await this.profiles.findOne({
@@ -757,37 +730,3 @@ function incomeBand(annualIncome?: number): string | null {
   return '₹50 lakh+';
 }
 
-/**
- * The real type of an image, from its leading bytes.
- *
- * Deliberately tiny and dependency-free: it recognises exactly the three
- * formats the platform accepts and returns null for everything else, which is
- * all the upload path needs in order to refuse a mislabelled file.
- */
-function sniffImageType(bytes: Buffer): string | null {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return 'image/jpeg';
-  }
-  if (
-    bytes.length >= 8 &&
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47 &&
-    bytes[4] === 0x0d &&
-    bytes[5] === 0x0a &&
-    bytes[6] === 0x1a &&
-    bytes[7] === 0x0a
-  ) {
-    return 'image/png';
-  }
-  // RIFF....WEBP
-  if (
-    bytes.length >= 12 &&
-    bytes.toString('ascii', 0, 4) === 'RIFF' &&
-    bytes.toString('ascii', 8, 12) === 'WEBP'
-  ) {
-    return 'image/webp';
-  }
-  return null;
-}

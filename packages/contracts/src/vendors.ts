@@ -30,6 +30,8 @@ export interface VendorDto {
   /** Median minutes to first quote. A ranking input, so vendors can see it. */
   medianResponseMins?: number | null;
   completedBookings: number;
+  /** The portfolio, cover first. Empty until the vendor uploads something. */
+  photos: VendorPhoto[];
 }
 
 export interface OnboardVendorRequest {
@@ -277,3 +279,26 @@ export interface GuestEnquiryResponse {
   accessToken: string;
   expiresInSec: number;
 }
+
+/**
+ * One shot in a vendor's portfolio.
+ *
+ * Unlike a matrimony photo there is no moderation gate: a vendor is a business
+ * whose identity is already checked by KYC, and holding their gallery for
+ * review would stall the listing they are paying attention to. Admins can still
+ * take a photo down.
+ */
+export interface VendorPhoto {
+  id: string;
+  url: string;
+  caption?: string | null;
+  /** The one shown on search cards. Exactly one is true when any exist. */
+  isCover: boolean;
+}
+
+/**
+ * Ten, because a portfolio is the single strongest signal a couple has when
+ * choosing between two venues they cannot visit yet - but past ten nobody
+ * scrolls, and every extra shot is bandwidth on a phone.
+ */
+export const MAX_VENDOR_PHOTOS = 10;

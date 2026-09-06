@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MediaController } from './media.controller.js';
 import { FILE_STORAGE } from './storage/file-storage.interface.js';
 import { LocalDiskStorage } from './storage/local-disk.storage.js';
+import { ImageValidationService } from './services/image-validation.service.js';
 
 /**
  * File storage, and the endpoint that serves it back.
@@ -24,7 +25,10 @@ import { LocalDiskStorage } from './storage/local-disk.storage.js';
   // feature can test on its own.
   imports: [ConfigModule],
   controllers: [MediaController],
-  providers: [{ provide: FILE_STORAGE, useClass: LocalDiskStorage }],
-  exports: [FILE_STORAGE],
+  providers: [
+    { provide: FILE_STORAGE, useClass: LocalDiskStorage },
+    ImageValidationService,
+  ],
+  exports: [FILE_STORAGE, ImageValidationService],
 })
 export class MediaModule {}

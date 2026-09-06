@@ -1,4 +1,7 @@
 import {
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,13 +13,16 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { MAX_PHOTO_BYTES } from '@eventhub/contracts';
 import type {
   UpsertServiceRequest,
   VendorSearchQuery,
 } from '@eventhub/contracts';
 
 import { CurrentUser, Public, Roles } from '../../core/decorators.js';
+import type { UploadedImage } from '../media/storage/file-storage.interface.js';
 import { VendorsService } from './services/vendors.service.js';
 import {
   BlockDatesDto,
@@ -121,6 +127,62 @@ export class VendorsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   unblockDate(@Param('date') date: string, @CurrentUser('sub') userId: string) {
     return this.vendors.unblockDate(userId, date);
+  }
+
+  // ---------------------------------------------------------------- portfolio
+
+  /**
+   * Adds one photo to the signed-in vendor's portfolio.
+   *
+   * Held in memory: the cap is small and the storage driver wants a buffer, so
+   * spooling to a temp file would only add something to clean up. multer
+   * enforces the size while reading, so an oversized upload is cut off at the
+   * socket rather than buffered whole and then rejected.
+   */
+  @Post('me/portfolio')
+  @Roles('VENDOR_OWNER')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_PHOTO_BYTES, files: 1 } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        caption: { type: 'string' },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Add a portfolio photo' })
+  addPortfolioPhoto(
+    @UploadedFile() file: UploadedImage | undefined,
+    @Body('caption') caption: string | undefined,
+    @CurrentUser('sub') ownerId: string,
+  ) {
+    if (!file) throw new BadRequestException('Attach a photo to upload.');
+    return this.vendors.addPortfolioPhoto(ownerId, file, caption);
+  }
+
+  @Delete('me/portfolio/:photoId')
+  @Roles('VENDOR_OWNER')
+  @ApiOperation({ summary: 'Remove a portfolio photo' })
+  removePortfolioPhoto(
+    @Param('photoId') photoId: string,
+    @CurrentUser('sub') ownerId: string,
+  ) {
+    return this.vendors.removePortfolioPhoto(ownerId, photoId);
+  }
+
+  @Post('me/portfolio/:photoId/cover')
+  @HttpCode(HttpStatus.OK)
+  @Roles('VENDOR_OWNER')
+  @ApiOperation({ summary: 'Choose the photo shown on search cards' })
+  setCoverPhoto(
+    @Param('photoId') photoId: string,
+    @CurrentUser('sub') ownerId: string,
+  ) {
+    return this.vendors.setCoverPhoto(ownerId, photoId);
   }
 
   @Post(':id/kyc-decision')

@@ -11,6 +11,7 @@ import {
 } from '@eventhub/contracts';
 
 import { VendorApi, unwrap } from '../data/vendor-api';
+import { PortfolioManager } from '../components/portfolio-manager';
 import type { AppError } from '../../../core/models/app-error';
 
 const PER_UNIT: Record<string, string> = {
@@ -30,7 +31,7 @@ const PER_UNIT: Record<string, string> = {
 @Component({
   selector: 'eh-vendor-services-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatProgressBarModule],
+  imports: [MatButtonModule, MatProgressBarModule, PortfolioManager],
   template: `
     <main class="wrap">
       <header class="head">
@@ -142,6 +143,15 @@ const PER_UNIT: Record<string, string> = {
           </section>
         }
       }
+
+      <!--
+        The gallery lives beside the price list because they are the same job:
+        the two things a couple compares before they enquire.
+      -->
+      <eh-portfolio-manager
+        [vendor]="vendor.value() ?? null"
+        (changed)="onPortfolioChanged($event)"
+      />
     </main>
   `,
   styles: `
@@ -183,9 +193,18 @@ export class VendorServicesPage {
 
   protected readonly pricingModels = Object.values(PricingModel);
 
-  private readonly vendor = httpResource<VendorDto>(() => this.api.meUrl, {
+  protected readonly vendor = httpResource<VendorDto>(() => this.api.meUrl, {
     parse: unwrap<VendorDto>,
   });
+
+  /**
+   * The portfolio endpoints answer with the whole vendor, so that reply is
+   * taken as the new truth rather than triggering another GET for something
+   * the server just told us.
+   */
+  protected onPortfolioChanged(vendor: VendorDto): void {
+    this.vendor.value.set(vendor);
+  }
 
   /**
    * Waits for the organisation: httpResource treats an undefined URL as "not

@@ -45,6 +45,39 @@ export class VendorApi {
     return res.data;
   }
 
+  /**
+   * Adds one portfolio photo.
+   *
+   * FormData with no Content-Type set by hand - the browser must add the
+   * multipart boundary itself, and setting the header manually omits it.
+   */
+  async addPortfolioPhoto(file: File, caption?: string): Promise<VendorDto> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    if (caption?.trim()) body.append('caption', caption.trim());
+    const res = await firstValueFrom(
+      this.http.post<Envelope<VendorDto>>(`${this.meUrl}/portfolio`, body),
+    );
+    return res.data;
+  }
+
+  async removePortfolioPhoto(photoId: string): Promise<VendorDto> {
+    const res = await firstValueFrom(
+      this.http.delete<Envelope<VendorDto>>(`${this.meUrl}/portfolio/${photoId}`),
+    );
+    return res.data;
+  }
+
+  async setCoverPhoto(photoId: string): Promise<VendorDto> {
+    const res = await firstValueFrom(
+      this.http.post<Envelope<VendorDto>>(
+        `${this.meUrl}/portfolio/${photoId}/cover`,
+        {},
+      ),
+    );
+    return res.data;
+  }
+
   async addService(dto: UpsertServiceRequest): Promise<VendorServiceDto> {
     const res = await firstValueFrom(
       this.http.post<Envelope<VendorServiceDto>>(`${this.base}/me/services`, dto),

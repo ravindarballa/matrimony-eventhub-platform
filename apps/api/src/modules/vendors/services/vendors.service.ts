@@ -1,4 +1,5 @@
 import {
+  Inject,
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import {
@@ -15,6 +17,7 @@ import {
   ErrorCode,
   IFSC_REGEX,
   KycStatus,
+  MAX_VENDOR_PHOTOS,
   PAN_REGEX,
   GSTIN_REGEX,
   type KycDecisionRequest,
@@ -34,6 +37,12 @@ import {
   type VendorAvailabilityDocument,
 } from '../../events/schemas/vendor-availability.schema.js';
 import { Vendor, type VendorDocument } from '../schemas/vendor.schema.js';
+import {
+  FILE_STORAGE,
+  type FileStorage,
+  type UploadedImage,
+} from '../../media/storage/file-storage.interface.js';
+import { ImageValidationService } from '../../media/services/image-validation.service.js';
 import {
   VendorService as VendorServiceEntity,
   type VendorServiceDocument,
@@ -69,6 +78,8 @@ export class VendorsService {
     @InjectModel(VendorAvailability.name)
     private readonly availability: Model<VendorAvailabilityDocument>,
     private readonly events: EventEmitter2,
+    @Inject(FILE_STORAGE) private readonly storage: FileStorage,
+    private readonly images: ImageValidationService,
   ) {}
 
   // ---------------------------------------------------------------- onboarding
@@ -481,6 +492,94 @@ export class VendorsService {
     await vendor.save();
   }
 
+  // ---------------------------------------------------------------- portfolio
+
+  /**
+   * Adds one photo to the vendor's own portfolio.
+   *
+   * No moderation gate, unlike a matrimony photo: a vendor is a business whose
+   * identity KYC already checked, and holding their gallery for review would
+   * stall the very listing they are trying to fill in. A photo is checked for
+   * being a real image, and that is the whole of it.
+   */
+  async addPortfolioPhoto(
+    ownerId: string,
+    file: UploadedImage,
+    caption?: string,
+  ): Promise<VendorDto> {
+    const vendor = await this.requireOwned(ownerId);
+
+    if ((vendor.portfolio?.length ?? 0) >= MAX_VENDOR_PHOTOS) {
+      throw new ConflictException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `A portfolio holds ${MAX_VENDOR_PHOTOS} photos. Remove one first.`,
+      });
+    }
+
+    this.images.assertUsable(file);
+
+    const stored = await this.storage.put({
+      prefix: 'vendor-portfolio',
+      contentType: file.mimetype,
+      bytes: file.buffer,
+    });
+
+    vendor.portfolio.push({
+      id: randomUUID(),
+      storageKey: stored.key,
+      url: stored.url,
+      caption: caption?.trim() || undefined,
+      // The first upload becomes the cover, so a vendor with one photo still
+      // has one on their search card.
+      isCover: vendor.portfolio.length === 0,
+    });
+    await vendor.save();
+
+    return this.toDto(vendor);
+  }
+
+  /**
+   * Removes a photo. The document is saved before the bytes are deleted, so a
+   * failed delete leaves an unreachable object rather than a card pointing at
+   * a photo that is gone.
+   */
+  async removePortfolioPhoto(ownerId: string, photoId: string): Promise<VendorDto> {
+    const vendor = await this.requireOwned(ownerId);
+
+    const photo = vendor.portfolio.find((p) => p.id === photoId);
+    if (!photo) throw new NotFoundException();
+
+    const wasCover = photo.isCover;
+    vendor.portfolio = vendor.portfolio.filter((p) => p.id !== photoId);
+
+    // Promote another, so removing the cover never leaves a gallery with none.
+    if (wasCover && vendor.portfolio.length > 0) {
+      vendor.portfolio[0]!.isCover = true;
+    }
+    await vendor.save();
+
+    try {
+      await this.storage.remove(photo.storageKey ?? photo.id);
+    } catch (err) {
+      this.logger.warn(`Orphaned portfolio photo ${photoId}: ${String(err)}`);
+    }
+
+    return this.toDto(vendor);
+  }
+
+  /** Chooses the shot that represents the vendor on a search card. */
+  async setCoverPhoto(ownerId: string, photoId: string): Promise<VendorDto> {
+    const vendor = await this.requireOwned(ownerId);
+
+    if (!vendor.portfolio.some((p) => p.id === photoId)) {
+      throw new NotFoundException();
+    }
+    for (const photo of vendor.portfolio) photo.isCover = photo.id === photoId;
+    await vendor.save();
+
+    return this.toDto(vendor);
+  }
+
   toDto(vendor: VendorDocument): VendorDto {
     return {
       id: vendor.id as string,
@@ -497,6 +596,16 @@ export class VendorsService {
       reviewCount: vendor.reviewCount,
       medianResponseMins: vendor.medianResponseMins ?? null,
       completedBookings: vendor.completedBookings,
+      // Cover first, so a caller that shows one photo shows the right one
+      // without having to know the rule.
+      photos: [...(vendor.portfolio ?? [])]
+        .sort((a, b) => Number(b.isCover) - Number(a.isCover))
+        .map((photo) => ({
+          id: photo.id,
+          url: photo.url,
+          caption: photo.caption ?? null,
+          isCover: photo.isCover,
+        })),
     };
   }
 

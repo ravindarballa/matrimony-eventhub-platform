@@ -25,6 +25,18 @@ export class KycDetails {
 
 export const KycDetailsSchema = SchemaFactory.createForClass(KycDetails);
 
+@Schema({ _id: false })
+export class PortfolioPhoto {
+  @Prop({ required: true }) id!: string;
+  /** The storage driver's handle. Separate from id, which travels in URLs. */
+  @Prop() storageKey?: string;
+  @Prop({ required: true }) url!: string;
+  @Prop({ trim: true, maxlength: 140 }) caption?: string;
+  @Prop({ default: false }) isCover!: boolean;
+}
+
+export const PortfolioPhotoSchema = SchemaFactory.createForClass(PortfolioPhoto);
+
 @Schema({ timestamps: true, collection: 'vendors' })
 export class Vendor {
   /**
@@ -57,6 +69,10 @@ export class Vendor {
 
   @Prop({ type: KycDetailsSchema, select: false })
   kyc?: KycDetails;
+
+  /** The gallery couples judge a venue by. Not moderated; KYC already vets them. */
+  @Prop({ type: [PortfolioPhotoSchema], default: [] })
+  portfolio!: PortfolioPhoto[];
 
   @Prop({ trim: true })
   kycRejectionReason?: string;

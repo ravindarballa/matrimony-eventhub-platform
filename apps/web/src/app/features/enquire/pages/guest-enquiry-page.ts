@@ -116,6 +116,9 @@ type Step = 'pick' | 'details' | 'code';
 
         @for (vendor of results.value(); track vendor.id) {
           <article class="card" [class.picked]="selected().has(vendor.id)">
+            @if (vendor.photos[0]; as cover) {
+              <img class="cover" [src]="cover.url" [alt]="vendor.businessName" />
+            }
             <div class="row">
               <div>
                 <h2>{{ vendor.businessName }}</h2>
@@ -311,6 +314,9 @@ type Step = 'pick' | 'details' | 'code';
             gap: 1rem; background: #2f2d78; color: #fff;
             padding: 0.7rem 1rem; border-radius: 10px; }
     .muted { opacity: 0.7; }
+    .cover { width: calc(100% + 2.5rem); margin: -1.1rem -1.25rem 0;
+             aspect-ratio: 16 / 7; object-fit: cover; display: block;
+             background: rgb(0 0 0 / 0.05); border-radius: 10px 10px 0 0; }
     .card { border: 1px solid rgb(0 0 0 / 0.12); border-radius: 10px; background: #fff;
             padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; }
     .card.picked { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }

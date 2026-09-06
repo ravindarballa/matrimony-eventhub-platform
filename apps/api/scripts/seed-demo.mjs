@@ -19,7 +19,7 @@
  *   npm run seed              accounts, vendors, galleries, profiles
  *   npm run seed -- --funnel  the above, plus enquiries, quotes and a booking
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -92,11 +92,42 @@ function resetMedia() {
 
 /** Writes one generated image where the media endpoint will find it. */
 function storeImage(prefix, colour, { width = 640, height = 360, render = solidPng } = {}) {
-  const key = `${prefix}/${randomBytes(16).toString('hex')}.png`;
+  return storeBytes(prefix, render(width, height, colour), 'png');
+}
+
+/** Puts finished bytes in the store under a random key of the given type. */
+function storeBytes(prefix, bytes, ext) {
+  const key = `${prefix}/${randomBytes(16).toString('hex')}.${ext}`;
   const path = join(mediaRoot, key);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, render(width, height, colour));
+  writeFileSync(path, bytes);
   return { key, url: `/api/v1/media/${key}` };
+}
+
+/**
+ * The seed's portrait photos, read once from disk.
+ *
+ * Generated faces of people who do not exist - see faces/README.md for why a
+ * real photograph is not an option on a fabricated profile. Sorted by gender so
+ * a bride never gets a man's photograph, and cycled, so the same face turns up
+ * on several profiles. That is a demo artefact and not worth more images.
+ */
+const FACES = { FEMALE: [], MALE: [] };
+for (const [gender, prefix] of [['FEMALE', 'female'], ['MALE', 'male']]) {
+  for (let i = 0; ; i++) {
+    const file = join(here, 'lib', 'faces', `${prefix}-${i}.jpg`);
+    if (!existsSync(file)) break;
+    FACES[gender].push(readFileSync(file));
+  }
+}
+
+let faceCursor = 0;
+
+/** One portrait for a profile of this gender, or null if the folder is empty. */
+function storeFace(gender) {
+  const set = FACES[gender] ?? [];
+  if (set.length === 0) return null;
+  return storeBytes('profile-photos', set[faceCursor++ % set.length], 'jpg');
 }
 
 const now = new Date();
@@ -395,13 +426,16 @@ async function profile({
     photos: photoColour
       ? [
           (() => {
-            const stored = storeImage('profile-photos', photoColour, {
-              width: 480,
-              height: 600,
-              // 4:5, the shape the tiles crop to, and a silhouette rather than
-              // a flat block so a tile reads as a person.
-              render: (w, h, c) => portraitPng(w, h, c, gender === 'FEMALE'),
-            });
+            // A generated portrait when the faces folder has one, and the
+            // drawn silhouette when it does not - so removing those files
+            // degrades the demo rather than breaking the seed.
+            const stored =
+              storeFace(gender) ??
+              storeImage('profile-photos', photoColour, {
+                width: 480,
+                height: 600,
+                render: (w, h, c) => portraitPng(w, h, c, gender === 'FEMALE'),
+              });
             return {
               id: randomUUID(),
               storageKey: stored.key,
@@ -455,11 +489,13 @@ await db.collection('matrimony_profiles').insertOne({
   horoscope: { birthTime: '06:10', birthPlace: 'Warangal', nakshatra: 13, rashi: 6 },
   photos: [
     (() => {
-      const stored = storeImage('profile-photos', PALETTE.indigo, {
-        width: 480,
-        height: 600,
-        render: (w, h, c) => portraitPng(w, h, c, false),
-      });
+      const stored =
+        storeFace('MALE') ??
+        storeImage('profile-photos', PALETTE.indigo, {
+          width: 480,
+          height: 600,
+          render: (w, h, c) => portraitPng(w, h, c, false),
+        });
       return {
         id: randomUUID(),
         storageKey: stored.key,
@@ -832,6 +868,7 @@ const brides = profileDocs.filter((d) => d.gender === 'FEMALE').length;
 line('Matrimony profiles', `${profileDocs.length} - ${brides} brides, ${profileDocs.length - brides} grooms`);
 line('Communities covered', String(new Set(profileDocs.map((d) => d.community)).size));
 line('Galleries', `10 vendor photos, ${photoCount} profile photos`);
+line('Portraits', `${FACES.FEMALE.length} female, ${FACES.MALE.length} male (generated)`);
 line('Awaiting moderation', `${pendingCount} profile photos`);
 if (WITH_FUNNEL) {
   line('Enquiries', '2 - one with both venues quoting, one unanswered');

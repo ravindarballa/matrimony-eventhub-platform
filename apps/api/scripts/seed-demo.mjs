@@ -134,6 +134,19 @@ for (const [gender, folder] of [['FEMALE', 'female'], ['MALE', 'male']]) {
 
 let faceCursor = 0;
 
+/**
+ * A portrait for one named account, if a file has been dropped in for it.
+ *
+ * The demo customer is the account a person actually signs into, so it is the
+ * one worth putting a real face on - and unlike the generated set, this is a
+ * photograph its owner supplied of themselves. Kept out of the female/ and
+ * male/ pools so it lands on that profile and nowhere else.
+ */
+function storeNamedFace(name) {
+  const file = join(here, 'lib', 'faces', `${name}.jpg`);
+  return existsSync(file) ? storeBytes('profile-photos', readFileSync(file), 'jpg') : null;
+}
+
 /** One portrait for a profile of this gender, or null if the folder is empty. */
 function storeFace(gender) {
   const set = FACES[gender] ?? [];
@@ -502,6 +515,7 @@ await db.collection('matrimony_profiles').insertOne({
   photos: [
     (() => {
       const stored =
+        storeNamedFace('rahul') ??
         storeFace('MALE') ??
         storeImage('profile-photos', PALETTE.indigo, {
           width: 480,

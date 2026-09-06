@@ -14,6 +14,9 @@ import { MatStepperModule } from '@angular/material/stepper';
 import { firstValueFrom } from 'rxjs';
 import {
   Diet,
+  OTHER_COMMUNITY,
+  RELIGIONS,
+  communitiesFor,
   Gender,
   INDIAN_MOBILE_REGEX,
   MIN_AGE_BY_GENDER,
@@ -27,7 +30,6 @@ import { AuthStore } from '../data/auth.store';
 import { MatrimonyApi } from '../../matrimony/data/matrimony-api';
 import type { AppError } from '../../../core/models/app-error';
 
-const RELIGIONS = ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Jain', 'Buddhist', 'Parsi', 'Other'];
 const TONGUES = [
   'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Marathi',
   'Bengali', 'Gujarati', 'Punjabi', 'Odia', 'Urdu', 'Other',
@@ -156,7 +158,10 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
             <div class="grid">
               <label>
                 <span>Religion</span>
-                <select [value]="religion()" (change)="religion.set($any($event.target).value)">
+                <select
+                  [value]="religion()"
+                  (change)="onReligionChange($any($event.target).value)"
+                >
                   @for (r of religions; track r) {
                     <option [value]="r" [selected]="r === religion()">{{ r }}</option>
                   }
@@ -164,12 +169,24 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
               </label>
               <label>
                 <span>Community</span>
-                <input
-                  type="text"
-                  placeholder="Reddy, Brahmin, Nair…"
-                  [value]="community()"
-                  (input)="community.set($any($event.target).value)"
-                />
+                <select
+                  [value]="communityChoice()"
+                  (change)="communityChoice.set($any($event.target).value)"
+                >
+                  <option value="" [selected]="communityChoice() === ''">Select…</option>
+                  @for (c of communityOptions(); track c) {
+                    <option [value]="c" [selected]="c === communityChoice()">{{ c }}</option>
+                  }
+                </select>
+                @if (communityIsOther()) {
+                  <input
+                    class="other"
+                    type="text"
+                    placeholder="Type your community"
+                    [value]="communityOther()"
+                    (input)="communityOther.set($any($event.target).value)"
+                  />
+                }
               </label>
 
               <label>
@@ -351,6 +368,7 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
             font: inherit; font-size: 0.95rem; padding: 0.6rem 0.65rem; border-radius: 8px;
             border: 1px solid rgb(0 0 0 / 0.25); background: #fff; color: rgb(0 0 0 / 0.87);
             text-transform: none; letter-spacing: normal; }
+    .other { margin-top: 0.4rem; }
     .code { font-size: 1.4rem; letter-spacing: 0.4em; text-align: center; }
     small { text-transform: none; letter-spacing: normal; font-size: 0.75rem;
             color: rgb(0 0 0 / 0.5); }
@@ -416,7 +434,14 @@ export class MatrimonyRegisterPage {
 
   // Step 2
   protected readonly religion = signal('Hindu');
-  protected readonly community = signal('');
+  /**
+   * Community is picked from a list scoped to the religion, with a free-text
+   * box behind 'Other'. The lists are nowhere near exhaustive - no list of
+   * Indian communities is - so refusing anything not on one would be a form
+   * telling people they do not exist.
+   */
+  protected readonly communityChoice = signal('');
+  protected readonly communityOther = signal('');
   protected readonly tongue = signal('Telugu');
   protected readonly city = signal('');
   protected readonly heightCm = signal(163);
@@ -474,9 +499,32 @@ export class MatrimonyRegisterPage {
       !!this.dob() &&
       this.ageFromDob() >= this.minimumAge(),
   );
+  protected readonly communityOptions = computed(() => communitiesFor(this.religion()));
+  protected readonly communityIsOther = computed(
+    () => this.communityChoice() === OTHER_COMMUNITY,
+  );
+
+  /** What actually gets saved: the picked value, or whatever they typed. */
+  protected readonly community = computed(() =>
+    this.communityIsOther() ? this.communityOther().trim() : this.communityChoice(),
+  );
+
   protected readonly backgroundDone = computed(
     () => !!this.community().trim() && !!this.city().trim(),
   );
+
+  /**
+   * Changing religion clears the community.
+   *
+   * The lists barely overlap between religions, so keeping the old pick would
+   * leave a Jat Sikh sitting under Hindu - selected, invisible in the new list,
+   * and saved if nobody noticed.
+   */
+  protected onReligionChange(religion: string): void {
+    this.religion.set(religion);
+    this.communityChoice.set('');
+    this.communityOther.set('');
+  }
 
   protected checkAbout(): void {
     if (this.aboutDone()) return void this.error.set(null);
@@ -493,7 +541,7 @@ export class MatrimonyRegisterPage {
     if (this.backgroundDone()) return void this.error.set(null);
     this.error.set(
       !this.community().trim()
-        ? 'Enter the community, or "Any" if it does not matter.'
+        ? 'Choose a community, or pick Other and type it in.'
         : 'Enter the city they live in.',
     );
   }

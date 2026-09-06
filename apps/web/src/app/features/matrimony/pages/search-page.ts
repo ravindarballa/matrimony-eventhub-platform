@@ -9,7 +9,12 @@ import {
 import { httpResource } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Diet, MaritalStatus, type ProfileCardDto } from '@eventhub/contracts';
+import {
+  COMMUNITIES_BY_RELIGION,
+  Diet,
+  MaritalStatus,
+  type ProfileCardDto,
+} from '@eventhub/contracts';
 
 import { MatrimonyApi, unwrap } from '../data/matrimony-api';
 import { MatrimonySearchStore } from '../data/search.store';
@@ -46,11 +51,26 @@ import type { AppError } from '../../../core/models/app-error';
       <section class="filters">
         <label>
           <span>Community</span>
-          <input
-            type="text"
+          <!--
+            Grouped by religion, because the filter has no religion of its own
+            to scope by and a flat hundred-item list is unreadable. The groups
+            are the only thing that makes it scannable.
+          -->
+          <select
             [value]="store.filters().community ?? ''"
             (change)="store.setFilter('community', $any($event.target).value)"
-          />
+          >
+            <option value="">Any</option>
+            @for (group of communityGroups; track group.religion) {
+              <optgroup [label]="group.religion">
+                @for (c of group.communities; track c) {
+                  <option [value]="c" [selected]="c === store.filters().community">
+                    {{ c }}
+                  </option>
+                }
+              </optgroup>
+            }
+          </select>
         </label>
 
         <label>
@@ -234,6 +254,11 @@ import type { AppError } from '../../../core/models/app-error';
 export class MatrimonySearchPage {
   private readonly api = inject(MatrimonyApi);
   protected readonly store = inject(MatrimonySearchStore);
+
+  /** Every community, kept under its religion so the list can be scanned. */
+  protected readonly communityGroups = Object.entries(COMMUNITIES_BY_RELIGION)
+    .filter(([, communities]) => communities.length > 0)
+    .map(([religion, communities]) => ({ religion, communities }));
 
   protected readonly diets = Object.values(Diet);
   protected readonly maritalStatuses = Object.values(MaritalStatus);

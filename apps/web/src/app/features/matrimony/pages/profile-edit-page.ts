@@ -19,11 +19,15 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
   Diet,
   Gender,
   MIN_AGE_BY_GENDER,
+  RELIGIONS,
+  communitiesFor,
   MaritalStatus,
   NAKSHATRAS,
   PhotoPrivacy,
@@ -121,6 +125,8 @@ const empty = (): ProfileModel => ({
     MatFormFieldModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
+    MatAutocompleteModule,
   ],
   template: `
     <main class="wrap">
@@ -238,12 +244,27 @@ const empty = (): ProfileModel => ({
         <div class="pair">
           <mat-form-field appearance="outline">
             <mat-label>Religion</mat-label>
-            <input matInput [formField]="f.religion" />
+            <mat-select [formField]="f.religion">
+              @for (r of religions; track r) {
+                <mat-option [value]="r">{{ r }}</mat-option>
+              }
+            </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Community</mat-label>
-            <input matInput [formField]="f.community" />
+            <!--
+              An autocomplete rather than a select: the list is scoped to the
+              religion and still nowhere near exhaustive, so it suggests without
+              refusing. Someone whose community is not on the list types it, and
+              an existing profile keeps whatever it already had.
+            -->
+            <input matInput [formField]="f.community" [matAutocomplete]="communityList" />
+            <mat-autocomplete #communityList="matAutocomplete">
+              @for (c of communitySuggestions(); track c) {
+                <mat-option [value]="c">{{ c }}</mat-option>
+              }
+            </mat-autocomplete>
           </mat-form-field>
         </div>
 
@@ -413,6 +434,18 @@ const empty = (): ProfileModel => ({
 })
 export class MatrimonyProfileEditPage {
   private readonly api = inject(MatrimonyApi);
+
+  protected readonly religions = RELIGIONS;
+
+  /**
+   * Suggestions for the community box, narrowed to the religion currently
+   * chosen and filtered by whatever has been typed so far.
+   */
+  protected readonly communitySuggestions = computed(() => {
+    const typed = this.model().community.trim().toLowerCase();
+    const all = communitiesFor(this.model().religion);
+    return typed ? all.filter((c) => c.toLowerCase().includes(typed)) : all;
+  });
 
   protected readonly managedByOptions = Object.values(ProfileManagedBy);
   protected readonly genders = Object.values(Gender);

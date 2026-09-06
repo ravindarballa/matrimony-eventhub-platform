@@ -50,11 +50,12 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
  * profile: one with no community, mother tongue or date of birth cannot be
  * searched or matched, so an account without one is an empty seat.
  *
- * A stepper rather than one long form. Everything here is required, so a single
- * page would be a wall of fifteen controls; three short steps let each one ask
- * about a single subject and let someone see how much is left. The stepper is
- * linear and each step reports its own completeness, so Next simply will not
- * move until that step is answered.
+ * A horizontal stepper across the full width, one step to a screen. Not an
+ * accordion: with every step stacked and open the form is a long scroll again,
+ * which is the thing a stepper is meant to prevent. Finishing a step replaces
+ * the screen with the next, and the header along the top is what says how much
+ * is left. It is linear, and each step reports its own completeness, so Next
+ * cannot skip an unanswered one.
  *
  * It asks for the minimum a profile needs to be searchable and stops.
  * Horoscope, career, family and photos belong on the profile editor, where the
@@ -70,242 +71,309 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, MatButtonModule, MatProgressBarModule, MatStepperModule],
   template: `
-    <div class="wrap">
-      <header>
-        <h2>Create your matrimony profile</h2>
-        <p class="sub">Three short steps. You can add photos and horoscope afterwards.</p>
+    <header class="bar">
+      <a class="brand" routerLink="/">
+        <span class="mark">EH</span>
+        <span>Matrimony <strong>EventHub</strong></span>
+      </a>
+      <a mat-button routerLink="/auth/login" class="signin">Already registered? Sign in</a>
+    </header>
+
+    <main class="page">
+      <header class="intro">
+        <h1>Create your matrimony profile</h1>
+        <p>
+          Three short steps. Photos, horoscope and family details come
+          afterwards, on your profile.
+        </p>
       </header>
 
       @if (busy()) { <mat-progress-bar mode="indeterminate" /> }
       @if (error(); as e) { <p class="err" role="alert">{{ e }}</p> }
 
-      <mat-stepper #stepper [linear]="true" orientation="vertical">
+      <mat-stepper [linear]="true" orientation="horizontal" class="stepper">
         <!-- ------------------------------------------------------ 1. profile -->
         <mat-step [completed]="aboutDone()" label="Profile">
-          <div class="fields">
-            <label>
-              <span>This profile is for</span>
-              <select [value]="managedBy()" (change)="managedBy.set($any($event.target).value)">
-                @for (m of managedByOptions; track m.value) {
-                  <option [value]="m.value" [selected]="m.value === managedBy()">
-                    {{ m.label }}
-                  </option>
-                }
-              </select>
-            </label>
+          <section class="stepBody">
+            <h2>Who is this profile for?</h2>
 
-            <label>
-              <span>{{ subject() }} a</span>
-              <select [value]="gender()" (change)="gender.set($any($event.target).value)">
-                <option value="FEMALE" [selected]="gender() === 'FEMALE'">Bride</option>
-                <option value="MALE" [selected]="gender() === 'MALE'">Groom</option>
-              </select>
-            </label>
+            <div class="grid">
+              <label>
+                <span>This profile is for</span>
+                <select [value]="managedBy()" (change)="managedBy.set($any($event.target).value)">
+                  @for (m of managedByOptions; track m.value) {
+                    <option [value]="m.value" [selected]="m.value === managedBy()">
+                      {{ m.label }}
+                    </option>
+                  }
+                </select>
+              </label>
 
-            <label>
-              <span>Name shown to matches</span>
-              <input
-                type="text"
-                autocomplete="name"
-                placeholder="A first name is enough"
-                [value]="displayName()"
-                (input)="displayName.set($any($event.target).value)"
-              />
-            </label>
+              <label>
+                <span>{{ subject() }} a</span>
+                <select [value]="gender()" (change)="gender.set($any($event.target).value)">
+                  <option value="FEMALE" [selected]="gender() === 'FEMALE'">Bride</option>
+                  <option value="MALE" [selected]="gender() === 'MALE'">Groom</option>
+                </select>
+              </label>
 
-            <label>
-              <span>Date of birth</span>
-              <input
-                type="date"
-                [max]="latestBirthDate()"
-                [value]="dob()"
-                (input)="dob.set($any($event.target).value)"
-              />
-              <small>Minimum age is {{ minimumAge() }} for a {{ genderWord() }}.</small>
-            </label>
-          </div>
+              <label>
+                <span>Name shown to matches</span>
+                <input
+                  type="text"
+                  autocomplete="name"
+                  placeholder="A first name is enough"
+                  [value]="displayName()"
+                  (input)="displayName.set($any($event.target).value)"
+                />
+              </label>
 
-          <div class="actions">
-            <button mat-flat-button matStepperNext class="go" (click)="checkAbout()">
-              Continue
-            </button>
-          </div>
+              <label>
+                <span>Date of birth</span>
+                <input
+                  type="date"
+                  [max]="latestBirthDate()"
+                  [value]="dob()"
+                  (input)="dob.set($any($event.target).value)"
+                />
+                <small>Minimum age is {{ minimumAge() }} for a {{ genderWord() }}.</small>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button mat-flat-button matStepperNext class="go" (click)="checkAbout()">
+                Continue
+              </button>
+            </div>
+          </section>
         </mat-step>
 
         <!-- --------------------------------------------------- 2. background -->
         <mat-step [completed]="backgroundDone()" label="Background">
-          <div class="fields two">
-            <label>
-              <span>Religion</span>
-              <select [value]="religion()" (change)="religion.set($any($event.target).value)">
-                @for (r of religions; track r) {
-                  <option [value]="r" [selected]="r === religion()">{{ r }}</option>
-                }
-              </select>
-            </label>
-            <label>
-              <span>Community</span>
-              <input
-                type="text"
-                placeholder="Reddy, Brahmin, Nair…"
-                [value]="community()"
-                (input)="community.set($any($event.target).value)"
-              />
-            </label>
+          <section class="stepBody">
+            <h2>Background</h2>
 
-            <label>
-              <span>Mother tongue</span>
-              <select [value]="tongue()" (change)="tongue.set($any($event.target).value)">
-                @for (t of tongues; track t) {
-                  <option [value]="t" [selected]="t === tongue()">{{ t }}</option>
-                }
-              </select>
-            </label>
-            <label>
-              <span>City</span>
-              <input
-                type="text"
-                placeholder="Hyderabad"
-                [value]="city()"
-                (input)="city.set($any($event.target).value)"
-              />
-            </label>
-
-            <label>
-              <span>Height</span>
-              <select [value]="heightCm()" (change)="heightCm.set(+$any($event.target).value)">
-                @for (h of heights; track h.cm) {
-                  <option [value]="h.cm" [selected]="h.cm === heightCm()">{{ h.label }}</option>
-                }
-              </select>
-            </label>
-            <label>
-              <span>Marital status</span>
-              <select
-                [value]="maritalStatus()"
-                (change)="maritalStatus.set($any($event.target).value)"
-              >
-                @for (m of maritalStatuses; track m) {
-                  <option [value]="m" [selected]="m === maritalStatus()">{{ label(m) }}</option>
-                }
-              </select>
-            </label>
-
-            <label>
-              <span>Diet</span>
-              <select [value]="diet()" (change)="diet.set($any($event.target).value)">
-                @for (d of diets; track d) {
-                  <option [value]="d" [selected]="d === diet()">{{ label(d) }}</option>
-                }
-              </select>
-            </label>
-          </div>
-
-          <div class="actions">
-            <button mat-button matStepperPrevious type="button">Back</button>
-            <button mat-flat-button matStepperNext class="go" (click)="checkBackground()">
-              Continue
-            </button>
-          </div>
-        </mat-step>
-
-        <!-- ------------------------------------------------------- 3. verify -->
-        <mat-step [completed]="false" label="Verify your number">
-          @if (!challengeId()) {
-            <div class="fields">
+            <div class="grid">
               <label>
-                <span>Mobile number</span>
+                <span>Religion</span>
+                <select [value]="religion()" (change)="religion.set($any($event.target).value)">
+                  @for (r of religions; track r) {
+                    <option [value]="r" [selected]="r === religion()">{{ r }}</option>
+                  }
+                </select>
+              </label>
+              <label>
+                <span>Community</span>
                 <input
-                  type="tel"
-                  inputmode="numeric"
-                  maxlength="10"
-                  autocomplete="tel-national"
-                  placeholder="9812345678"
-                  [value]="mobile()"
-                  (input)="mobile.set($any($event.target).value)"
+                  type="text"
+                  placeholder="Reddy, Brahmin, Nair…"
+                  [value]="community()"
+                  (input)="community.set($any($event.target).value)"
                 />
-                <small>Never shown on your profile. Matches only ever see your name.</small>
               </label>
 
-              <label class="check">
+              <label>
+                <span>Mother tongue</span>
+                <select [value]="tongue()" (change)="tongue.set($any($event.target).value)">
+                  @for (t of tongues; track t) {
+                    <option [value]="t" [selected]="t === tongue()">{{ t }}</option>
+                  }
+                </select>
+              </label>
+              <label>
+                <span>City</span>
                 <input
-                  type="checkbox"
-                  [checked]="consent()"
-                  (change)="consent.set($any($event.target).checked)"
+                  type="text"
+                  placeholder="Hyderabad"
+                  [value]="city()"
+                  (input)="city.set($any($event.target).value)"
                 />
-                <span>I accept the terms and the privacy policy.</span>
+              </label>
+
+              <label>
+                <span>Height</span>
+                <select [value]="heightCm()" (change)="heightCm.set(+$any($event.target).value)">
+                  @for (h of heights; track h.cm) {
+                    <option [value]="h.cm" [selected]="h.cm === heightCm()">{{ h.label }}</option>
+                  }
+                </select>
+              </label>
+              <label>
+                <span>Marital status</span>
+                <select
+                  [value]="maritalStatus()"
+                  (change)="maritalStatus.set($any($event.target).value)"
+                >
+                  @for (m of maritalStatuses; track m) {
+                    <option [value]="m" [selected]="m === maritalStatus()">{{ label(m) }}</option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                <span>Diet</span>
+                <select [value]="diet()" (change)="diet.set($any($event.target).value)">
+                  @for (d of diets; track d) {
+                    <option [value]="d" [selected]="d === diet()">{{ label(d) }}</option>
+                  }
+                </select>
               </label>
             </div>
 
             <div class="actions">
               <button mat-button matStepperPrevious type="button">Back</button>
-              <button mat-flat-button class="go" [disabled]="busy()" (click)="sendCode()">
-                Send me a code
+              <button mat-flat-button matStepperNext class="go" (click)="checkBackground()">
+                Continue
               </button>
             </div>
-          } @else {
-            <div class="fields">
-              <label>
-                <span>6-digit code</span>
-                <input
-                  type="text"
-                  inputmode="numeric"
-                  maxlength="6"
-                  autocomplete="one-time-code"
-                  [value]="code()"
-                  (input)="code.set($any($event.target).value)"
-                />
-                <small>Sent to +91 {{ mobile() }}.</small>
-              </label>
+          </section>
+        </mat-step>
 
-              @if (devCode()) {
-                <p class="dev">
-                  Development mode — your code is <strong>{{ devCode() }}</strong>
-                </p>
-              }
-            </div>
+        <!-- ------------------------------------------------------- 3. verify -->
+        <mat-step [completed]="false" label="Verify">
+          <section class="stepBody narrow">
+            @if (!challengeId()) {
+              <h2>Verify your mobile number</h2>
+              <p class="lead">
+                This is how matches reach you, and how you sign in. It is never
+                shown on your profile.
+              </p>
 
-            <div class="actions">
-              <button mat-button type="button" (click)="changeNumber()">Change number</button>
-              <button mat-flat-button class="go" [disabled]="busy()" (click)="verify()">
-                Verify and start searching
-              </button>
-            </div>
-          }
+              <div class="grid one">
+                <label>
+                  <span>Mobile number</span>
+                  <input
+                    type="tel"
+                    inputmode="numeric"
+                    maxlength="10"
+                    autocomplete="tel-national"
+                    placeholder="9812345678"
+                    [value]="mobile()"
+                    (input)="mobile.set($any($event.target).value)"
+                  />
+                </label>
+
+                <label class="check">
+                  <input
+                    type="checkbox"
+                    [checked]="consent()"
+                    (change)="consent.set($any($event.target).checked)"
+                  />
+                  <span>I accept the terms and the privacy policy.</span>
+                </label>
+              </div>
+
+              <div class="actions">
+                <button mat-button matStepperPrevious type="button">Back</button>
+                <button mat-flat-button class="go" [disabled]="busy()" (click)="sendCode()">
+                  Send me a code
+                </button>
+              </div>
+            } @else {
+              <h2>Enter the code</h2>
+              <p class="lead">We sent a 6-digit code to +91 {{ mobile() }}.</p>
+
+              <div class="grid one">
+                <label>
+                  <span>6-digit code</span>
+                  <input
+                    class="code"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    [value]="code()"
+                    (input)="code.set($any($event.target).value)"
+                  />
+                </label>
+
+                @if (devCode()) {
+                  <p class="dev">
+                    Development mode — your code is <strong>{{ devCode() }}</strong>
+                  </p>
+                }
+              </div>
+
+              <div class="actions">
+                <button mat-button type="button" (click)="changeNumber()">Change number</button>
+                <button mat-flat-button class="go" [disabled]="busy()" (click)="verify()">
+                  Verify and start searching
+                </button>
+              </div>
+            }
+          </section>
         </mat-step>
       </mat-stepper>
 
       <p class="alt">
-        Only after quotes? <a routerLink="/enquire">Enquire without an account</a><br />
-        Already registered? <a routerLink="/auth/login">Sign in</a>
+        Only after quotes? <a routerLink="/enquire">Enquire without an account</a>
       </p>
-    </div>
+    </main>
   `,
   styles: `
-    .wrap { width: min(34rem, 100%); display: flex; flex-direction: column; gap: 0.6rem; }
-    h2 { margin: 0; font-size: 1.4rem; font-weight: 600; }
-    .sub { margin: 0.3rem 0 0.4rem; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
-    .fields { display: flex; flex-direction: column; gap: 0.8rem; padding: 0.3rem 0 0.2rem; }
-    .fields.two { display: grid; grid-template-columns: 1fr 1fr; }
-    label { display: flex; flex-direction: column; gap: 0.28rem; font-size: 0.7rem;
+    :host { display: block; min-height: 100vh; background: #f7f7fb;
+            --ink: #2f2d78; --gold: #e8b341; }
+
+    .bar { display: flex; align-items: center; justify-content: space-between;
+           gap: 1rem; padding: 0.7rem clamp(1rem, 4vw, 3rem);
+           background: var(--ink); color: #fff; }
+    .brand { display: flex; align-items: center; gap: 0.6rem; color: inherit;
+             text-decoration: none; font-size: 1.05rem; }
+    .brand strong { color: var(--gold); font-weight: 700; }
+    .mark { display: grid; place-items: center; width: 2rem; height: 2rem;
+            border-radius: 7px; background: #fff; color: var(--ink);
+            font-weight: 800; font-size: 0.85rem; }
+    .signin { color: #fff !important; font-size: 0.85rem; }
+
+    .page { max-width: 52rem; margin: 0 auto;
+            padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 4vw, 2rem) 3rem; }
+    .intro { text-align: center; margin-bottom: 1.4rem; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 3.4vw, 2.1rem); color: var(--ink);
+         letter-spacing: -0.02em; }
+    .intro p { margin: 0.55rem auto 0; max-width: 46ch; line-height: 1.6;
+               color: rgb(0 0 0 / 0.62); font-size: 0.95rem; }
+
+    .stepper { background: #fff; border: 1px solid rgb(0 0 0 / 0.09);
+               border-radius: 14px; overflow: hidden; }
+    .stepBody { padding: 0.4rem 0.2rem 0.2rem; display: flex;
+                flex-direction: column; gap: 1rem; }
+    .stepBody.narrow { max-width: 26rem; }
+    h2 { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--ink); }
+    .lead { margin: -0.5rem 0 0; font-size: 0.92rem; line-height: 1.6;
+            color: rgb(0 0 0 / 0.65); }
+
+    /* Two columns, because the width is there - the point of the full page. */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.25rem; }
+    .grid.one { grid-template-columns: 1fr; }
+    label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.7rem;
             text-transform: uppercase; letter-spacing: 0.05em; color: rgb(0 0 0 / 0.55); }
     input[type='text'], input[type='tel'], input[type='date'], select {
-            font: inherit; font-size: 0.95rem; padding: 0.55rem 0.6rem; border-radius: 7px;
+            font: inherit; font-size: 0.95rem; padding: 0.6rem 0.65rem; border-radius: 8px;
             border: 1px solid rgb(0 0 0 / 0.25); background: #fff; color: rgb(0 0 0 / 0.87);
             text-transform: none; letter-spacing: normal; }
+    .code { font-size: 1.4rem; letter-spacing: 0.4em; text-align: center; }
     small { text-transform: none; letter-spacing: normal; font-size: 0.75rem;
             color: rgb(0 0 0 / 0.5); }
-    .check { grid-column: 1 / -1; flex-direction: row; align-items: flex-start; gap: 0.5rem;
-             text-transform: none; letter-spacing: normal; font-size: 0.85rem;
+    .check { flex-direction: row; align-items: flex-start; gap: 0.5rem;
+             text-transform: none; letter-spacing: normal; font-size: 0.88rem;
              color: rgb(0 0 0 / 0.7); }
     .check input { margin-top: 0.15rem; }
-    .actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.9rem; }
-    .go { background: #2f2d78 !important; color: #fff !important; font-weight: 700; }
-    .err { margin: 0; font-size: 0.85rem; color: #b3261e; }
+
+    .actions { display: flex; gap: 0.5rem; align-items: center;
+               margin-top: 0.5rem; padding-top: 0.9rem;
+               border-top: 1px solid rgb(0 0 0 / 0.07); }
+    .go { background: var(--ink) !important; color: #fff !important; font-weight: 700; }
+    .err { margin: 0 0 0.8rem; font-size: 0.9rem; color: #b3261e; text-align: center; }
     .dev { margin: 0; font-size: 0.85rem; color: #8a5a00; background: #fbf1dc;
            border-left: 3px solid #c98a16; padding: 0.5rem 0.7rem; border-radius: 0 6px 6px 0; }
-    .alt { font-size: 0.88rem; text-align: center; margin: 0.4rem 0 0; line-height: 1.7; }
-    @media (max-width: 520px) { .fields.two { grid-template-columns: 1fr; } }
+    .alt { font-size: 0.88rem; text-align: center; margin: 1.2rem 0 0;
+           color: rgb(0 0 0 / 0.6); }
+    .alt a, .lead a { color: var(--ink); font-weight: 600; }
+
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      .signin { display: none; }
+    }
   `,
 })
 export class MatrimonyRegisterPage {

@@ -8,6 +8,24 @@ import { guestOnlyGuard } from '../../core/guards/auth.guards';
  */
 export default [
   {
+    /**
+     * Outside the shell, deliberately.
+     *
+     * AuthShell is a half-and-half layout - a brand panel beside a narrow form
+     * column - which suits a login box and starves a stepper. This one needs
+     * the whole width for its fields, and it is long enough to deserve its own
+     * masthead rather than borrowing one designed to sit next to a password
+     * field. Declared before the shell so the more specific path wins.
+     */
+    path: 'register/matrimony',
+    canActivate: [guestOnlyGuard],
+    title: 'Create your matrimony profile · Matrimony EventHub',
+    loadComponent: () =>
+      import('./pages/matrimony-register-page').then(
+        (m) => m.MatrimonyRegisterPage,
+      ),
+  },
+  {
     path: '',
     loadComponent: () =>
       import('./components/auth-shell').then((m) => m.AuthShell),
@@ -23,17 +41,6 @@ export default [
         title: 'Create your account · Matrimony EventHub',
         loadComponent: () =>
           import('./pages/register-page').then((m) => m.RegisterPage),
-      },
-      {
-        // Its own page, not a mode of the ordinary one. A member needs a
-        // profile, not just an account, and conditionally growing one form into
-        // two different signups is how forms become unreadable.
-        path: 'register/matrimony',
-        title: 'Create your matrimony profile · Matrimony EventHub',
-        loadComponent: () =>
-          import('./pages/matrimony-register-page').then(
-            (m) => m.MatrimonyRegisterPage,
-          ),
       },
       {
         path: 'verify',

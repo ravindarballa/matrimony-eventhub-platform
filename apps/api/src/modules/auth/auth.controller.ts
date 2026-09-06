@@ -26,10 +26,13 @@ import {
   SetPasswordDto,
   VerifyOtpDto,
 } from './dto/auth.dto.js';
+import {
+  REFRESH_COOKIE,
+  clearRefreshCookie,
+  setRefreshCookie,
+} from './refresh-cookie.js';
 import { AuthService, type RequestMeta } from './services/auth.service.js';
 import { TokenService, type IssuedTokens } from './services/token.service.js';
-
-const REFRESH_COOKIE = 'eh_rt';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -118,7 +121,7 @@ export class AuthController {
       REFRESH_COOKIE
     ];
     if (token) await this.tokens.revokeByToken(token);
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    clearRefreshCookie(res);
     return { success: true };
   }
 
@@ -172,13 +175,7 @@ export class AuthController {
     user: SessionUser,
     tokens: IssuedTokens,
   ) {
-    res.cookie(REFRESH_COOKIE, tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env['NODE_ENV'] === 'production',
-      sameSite: 'strict',
-      path: '/api/v1/auth',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    setRefreshCookie(res, tokens.refreshToken);
     return {
       user,
       accessToken: tokens.accessToken,

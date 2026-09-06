@@ -175,6 +175,82 @@ export class AuthService {
     return { user: toSessionUser(user), tokens };
   }
 
+  /**
+   * Signs someone in from a verified mobile number alone, creating the account
+   * if there is not one yet.
+   *
+   * This is what makes the events side usable without a signup form: a family
+   * browses vendors anonymously and only proves a phone number at the moment
+   * they send an enquiry, which is the first point where an identity is
+   * genuinely needed - a vendor has to have somewhere to reply, and a booking
+   * has to belong to someone.
+   *
+   * The one-time code is the whole of the security here, and it is consumed on
+   * use: a replayed request fails on the code rather than creating a second
+   * account.
+   */
+  async signInWithVerifiedMobile(
+    params: {
+      fullName: string;
+      mobile: string;
+      otpChallengeId: string;
+      otpCode: string;
+      roles: Role[];
+    },
+    meta: RequestMeta,
+  ): Promise<{ user: SessionUser; tokens: IssuedTokens; userId: Types.ObjectId }> {
+    const { mobile } = await this.otp.verify(
+      params.otpChallengeId,
+      params.otpCode,
+      OtpPurpose.LOGIN,
+    );
+
+    if (mobile !== params.mobile) {
+      throw new UnauthorizedException(ErrorCode.AUTH_OTP_INVALID);
+    }
+
+    const existing = await this.users.findOne({ mobile }).select('+passwordHash');
+
+    const user =
+      existing ??
+      (await this.users.create({
+        fullName: params.fullName,
+        mobile,
+        roles: params.roles,
+        status: UserStatus.ACTIVE,
+        mobileVerified: true,
+        consent: {
+          accepted: true,
+          version: CONSENT_VERSION,
+          acceptedAt: new Date(),
+        },
+      }));
+
+    // An existing account keeps its name and gains whatever role it was missing,
+    // so an enquiry from someone who already has a profile does not fork them
+    // into a second identity.
+    let changed = false;
+    for (const role of params.roles) {
+      if (!user.roles.includes(role)) {
+        user.roles.push(role);
+        changed = true;
+      }
+    }
+    if (!user.mobileVerified) {
+      user.mobileVerified = true;
+      changed = true;
+    }
+    if (user.status !== UserStatus.ACTIVE) {
+      user.status = UserStatus.ACTIVE;
+      changed = true;
+    }
+    user.lastLoginAt = new Date();
+    if (changed || existing) await user.save();
+
+    const tokens = await this.tokens.issue(user._id, user.roles, meta);
+    return { user: toSessionUser(user), tokens, userId: user._id };
+  }
+
   async requestLoginOtp(mobile: string): Promise<{ challengeId: string; devCode?: string }> {
     const user = await this.users.findOne({ mobile });
     // Always return a challenge, even for an unknown number, so a caller cannot

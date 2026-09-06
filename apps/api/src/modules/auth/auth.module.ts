@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 
@@ -22,6 +23,10 @@ import {
       { name: Session.name, schema: SessionSchema },
       { name: OtpChallenge.name, schema: OtpChallengeSchema },
     ]),
+    // Declared rather than assumed global: auth reads OTP and token settings
+    // from configuration, and any module importing this one must get a working
+    // AuthModule without having to arrange config on its behalf.
+    ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     JwtModule.register({}), // secrets are supplied per-sign in TokenService
   ],

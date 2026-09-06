@@ -1,4 +1,6 @@
 import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule, getModelToken } from '@nestjs/mongoose';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
@@ -12,7 +14,11 @@ import {
   KycStatus,
 } from '@eventhub/contracts';
 
+import { configureApp } from '../src/bootstrap.js';
 import { EventsModule } from '../src/modules/events/events.module.js';
+import { AuthModule } from '../src/modules/auth/auth.module.js';
+import { OtpService } from '../src/modules/auth/services/otp.service.js';
+import { User } from '../src/modules/auth/schemas/user.schema.js';
 import { VendorsModule } from '../src/modules/vendors/vendors.module.js';
 import { EnquiriesService } from '../src/modules/events/services/enquiries.service.js';
 import { BookingsService } from '../src/modules/events/services/bookings.service.js';
@@ -45,6 +51,8 @@ describe('Enquiry to booking (e2e)', () => {
   let app: INestApplication;
   let mongo: MongoMemoryReplSet;
   let enquiries: EnquiriesService;
+  let otp: OtpService;
+  let userModel: Model<Record<string, unknown>>;
   let bookings: BookingsService;
   let vendorsService: VendorsService;
 
@@ -64,6 +72,22 @@ describe('Enquiry to booking (e2e)', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          // The guest flow signs people in, which needs signing keys.
+          load: [
+            () => ({
+              jwt: {
+                accessSecret: 'test-access-secret-at-least-32-characters',
+                accessTtl: 900,
+                refreshSecret: 'test-refresh-secret-at-least-32-chars',
+                refreshTtl: 2_592_000,
+              },
+              otp: { ttlSeconds: 600, maxAttempts: 5 },
+              nodeEnv: 'test',
+            }),
+          ],
+        }),
         MongooseModule.forRoot(mongo.getUri()),
         EventEmitterModule.forRoot(),
         VendorsModule,
@@ -72,9 +96,15 @@ describe('Enquiry to booking (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    // The same pipes, prefix and versioning main.ts applies. Without this the
+    // HTTP tests below would exercise a different app than the one that ships -
+    // in particular no ValidationPipe, so no DTO would ever be checked.
+    configureApp(app);
     await app.init();
 
     enquiries = moduleRef.get(EnquiriesService);
+    otp = moduleRef.get(OtpService);
+    userModel = moduleRef.get(getModelToken(User.name));
     bookings = moduleRef.get(BookingsService);
     vendorsService = moduleRef.get(VendorsService);
 
@@ -111,6 +141,7 @@ describe('Enquiry to booking (e2e)', () => {
       weddingModel.deleteMany({}),
       bookingModel.deleteMany({}),
       availability.deleteMany({}),
+      userModel.deleteMany({}),
     ]);
   });
 
@@ -514,6 +545,193 @@ describe('Enquiry to booking (e2e)', () => {
       expect(await enquiries.expireStaleEnquiries()).toBe(1);
       const stored = await enquiryModel.findById(enquiry.id);
       expect(stored!.vendors[0]!.status).toBe(EnquiryVendorStatus.EXPIRED);
+    });
+  });
+
+  describe('enquiring without an account', () => {
+    const GUEST_MOBILE = '9812345678';
+
+    /** What the browser does first: ask for a code. */
+    const codeFor = async (mobile: string) => {
+      const { challengeId, devCode } = await otp.issue(mobile, 'LOGIN');
+      return { challengeId, code: devCode! };
+    };
+
+    const guestBody = async (vendorId: string, mobile = GUEST_MOBILE) => {
+      const { challengeId, code } = await codeFor(mobile);
+      return {
+        fullName: 'Passing Visitor',
+        mobile,
+        otpChallengeId: challengeId,
+        otpCode: code,
+        city: 'Pune',
+        category: 'VENUE' as const,
+        functionType: 'WEDDING' as const,
+        functionDate: FUNCTION_DATE,
+        guestCount: 400,
+        notes: 'Found you through search.',
+        vendorIds: [vendorId],
+      };
+    };
+
+    it('creates the account, the wedding and the enquiry in one call', async () => {
+      const { vendorId } = await verifiedVendor();
+
+      const result = await enquiries.createAsGuest(
+        await guestBody(vendorId),
+        { device: 'test', ip: '::1' },
+      );
+
+      expect(result.enquiry.vendors).toHaveLength(1);
+      expect(result.enquiry.city).toBe('Pune');
+
+      // An account now exists, verified, and able to use the wedding side.
+      const user = await userModel.findOne({ mobile: GUEST_MOBILE });
+      expect(user).not.toBeNull();
+      expect(user!['roles']).toContain('CUSTOMER');
+      expect(user!['mobileVerified']).toBe(true);
+      expect(user!['status']).toBe('ACTIVE');
+
+      // And they are signed in, so quotes are visible without a second step.
+      expect(result.user).toBeDefined();
+      expect(result.tokens).toBeDefined();
+
+      expect(await weddingModel.countDocuments()).toBe(1);
+    });
+
+    it('refuses a wrong code, and creates nothing', async () => {
+      const { vendorId } = await verifiedVendor();
+      const body = await guestBody(vendorId);
+
+      // The stable code matters more than the status here: a wrong code is a
+      // bad request, not an authentication failure against an account that does
+      // not exist yet.
+      await expect(
+        enquiries.createAsGuest({ ...body, otpCode: '000000' }, {}),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: { message: 'AUTH_OTP_INVALID' },
+      });
+
+      expect(await userModel.countDocuments({ mobile: GUEST_MOBILE })).toBe(0);
+      expect(await enquiryModel.countDocuments()).toBe(0);
+    });
+
+    /**
+     * The double-tap case. The code is consumed on use, so a replayed submit
+     * fails rather than sending a second enquiry or forking the account.
+     */
+    it('cannot be replayed with the same code', async () => {
+      const { vendorId } = await verifiedVendor();
+      const body = await guestBody(vendorId);
+
+      await enquiries.createAsGuest(body, {});
+      await expect(enquiries.createAsGuest(body, {})).rejects.toMatchObject({
+        status: 400,
+        response: { message: 'AUTH_OTP_INVALID' },
+      });
+
+      expect(await enquiryModel.countDocuments()).toBe(1);
+      // Only the guest: the test vendor is created with a synthetic owner id
+      // and has no user row of its own.
+      expect(await userModel.countDocuments()).toBe(1);
+    });
+
+    it('reuses an existing account rather than forking it', async () => {
+      const { vendorId } = await verifiedVendor();
+
+      await enquiries.createAsGuest(await guestBody(vendorId), {});
+      const first = await userModel.findOne({ mobile: GUEST_MOBILE });
+
+      await enquiries.createAsGuest(await guestBody(vendorId), {});
+      const users = await userModel.find({ mobile: GUEST_MOBILE });
+
+      expect(users).toHaveLength(1);
+      expect(String(users[0]!._id)).toBe(String(first!._id));
+      // One family, one wedding, two enquiries.
+      expect(await weddingModel.countDocuments()).toBe(1);
+      expect(await enquiryModel.countDocuments()).toBe(2);
+    });
+
+    it('checks the vendors before creating an account', async () => {
+      const ownerId = new Types.ObjectId().toString();
+      const unverified = await vendorsService.onboard(ownerId, {
+        businessName: 'Unverified Hall',
+        category: 'VENUE',
+        city: 'Pune',
+        description: 'A hall that has not completed verification yet.',
+      });
+
+      await expect(
+        enquiries.createAsGuest(await guestBody(unverified.id), {}),
+      ).rejects.toMatchObject({ status: 409 });
+
+      // No stranded account left behind by a request that could never succeed.
+      expect(await userModel.countDocuments({ mobile: GUEST_MOBILE })).toBe(0);
+    });
+
+    /**
+     * Over HTTP, not through the service.
+     *
+     * Everything above calls createAsGuest directly, which skips the whole
+     * controller - the DTO is never validated and the response is never
+     * written. That is a real gap: the endpoint can be entirely broken while
+     * those tests stay green, so the request the browser actually makes is
+     * exercised here.
+     */
+    describe('over HTTP', () => {
+      const url = '/api/v1/enquiries/guest';
+
+      it('accepts the request a browser sends', async () => {
+        const { vendorId } = await verifiedVendor();
+        const body = await guestBody(vendorId);
+
+        const res = await request(app.getHttpServer()).post(url).send(body).expect(201);
+
+        expect(res.body.enquiry.id).toBeDefined();
+        expect(res.body.accessToken).toEqual(expect.any(String));
+        expect(res.body.user.mobile).toBe(GUEST_MOBILE);
+      });
+
+      /**
+       * The session has to survive a page reload, which means the cookie must
+       * carry the name and path /auth/refresh reads it back by. A cookie
+       * written under any other spelling looks fine to the caller and silently
+       * signs the guest out the moment they refresh.
+       */
+      it('sets the refresh cookie /auth/refresh can actually read', async () => {
+        const { vendorId } = await verifiedVendor();
+
+        const res = await request(app.getHttpServer())
+          .post(url)
+          .send(await guestBody(vendorId))
+          .expect(201);
+
+        const cookies = res.headers['set-cookie'] as unknown as string[];
+        const refresh = cookies.find((c) => c.startsWith('eh_rt='));
+
+        expect(refresh).toBeDefined();
+        expect(refresh).toContain('Path=/api/v1/auth');
+        expect(refresh).toContain('HttpOnly');
+      });
+
+      /**
+       * The DTO has to accept a real code. A regex that matches nothing a user
+       * can type rejects every valid submission with a 400, and no test that
+       * calls the service directly would ever notice.
+       */
+      it('rejects a malformed code but accepts six digits', async () => {
+        const { vendorId } = await verifiedVendor();
+        const body = await guestBody(vendorId);
+
+        await request(app.getHttpServer())
+          .post(url)
+          .send({ ...body, otpCode: '12ab' })
+          .expect(400);
+
+        // The same request with the untouched six-digit code goes through.
+        await request(app.getHttpServer()).post(url).send(body).expect(201);
+      });
     });
   });
 

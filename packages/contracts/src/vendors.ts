@@ -1,3 +1,4 @@
+import type { SessionUser } from './auth.js';
 import type { Paisa } from './common.js';
 import type {
   FunctionType,
@@ -236,4 +237,43 @@ export interface CreateWeddingFunctionRequest {
   type: FunctionType;
   date: string;
   guestCount: number;
+}
+
+/**
+ * An enquiry from someone with no account.
+ *
+ * Everything the platform needs to create the account, the wedding and the
+ * enquiry in one call - so a family fills in one form rather than registering,
+ * verifying, creating a wedding and only then being allowed to ask a question.
+ */
+export interface GuestEnquiryRequest {
+  fullName: string;
+  mobile: string;
+  otpChallengeId: string;
+  otpCode: string;
+
+  city: string;
+  category: VendorCategory;
+  functionType: FunctionType;
+  functionDate: string;
+  guestCount: number;
+  budget?: Paisa;
+  notes?: string;
+  vendorIds: string[];
+}
+
+/**
+ * What a guest enquiry returns.
+ *
+ * It carries a session as well as the enquiry, because submitting the form is
+ * also the moment the account comes into existence - the browser is signed in
+ * by the time the first quote arrives, without ever seeing a login screen. The
+ * refresh token is not here; it is set as an httpOnly cookie, exactly as an
+ * ordinary sign-in does.
+ */
+export interface GuestEnquiryResponse {
+  enquiry: EnquiryDto;
+  user: SessionUser;
+  accessToken: string;
+  expiresInSec: number;
 }

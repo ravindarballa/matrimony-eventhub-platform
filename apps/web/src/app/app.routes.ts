@@ -1,6 +1,6 @@
 import type { Routes } from '@angular/router';
 
-import { authGuard } from './core/guards/auth.guards';
+import { authGuard, guestOnlyGuard } from './core/guards/auth.guards';
 
 /**
  * Every feature is lazy-loaded. Only the shell and the auth store ship in the
@@ -37,6 +37,19 @@ export const routes: Routes = [
     path: 'admin',
     canActivate: [authGuard],
     loadChildren: () => import('./features/admin/admin.routes'),
+  },
+  {
+    // Public by design: this is the only route a visitor with no account can
+    // do something real on, so it carries no authGuard. guestOnlyGuard sends
+    // an already-signed-in customer to the ordinary search instead, where
+    // their wedding and past enquiries are already known.
+    path: 'enquire',
+    canActivate: [guestOnlyGuard],
+    title: 'Get quotes · Matrimony EventHub',
+    loadComponent: () =>
+      import('./features/enquire/pages/guest-enquiry-page').then(
+        (m) => m.GuestEnquiryPage,
+      ),
   },
   {
     path: 'forbidden',

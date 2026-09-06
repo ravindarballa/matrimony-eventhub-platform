@@ -20,6 +20,7 @@ import {
   VendorAvailabilitySchema,
 } from './schemas/vendor-availability.schema.js';
 import { VendorsModule } from '../vendors/vendors.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,8 @@ import { VendorsModule } from '../vendors/vendors.module.js';
     ]),
     // Enquiries must know whether a vendor is bookable before fanning out.
     VendorsModule,
+    // A guest enquiry creates the account it belongs to, which is auth's job.
+    AuthModule,
   ],
   controllers: [BookingsController, EnquiriesController],
   providers: [

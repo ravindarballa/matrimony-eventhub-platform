@@ -22,13 +22,17 @@ import {
   type CreateWeddingFunctionRequest,
   type CreateWeddingRequest,
   type EnquiryDto,
+  type GuestEnquiryRequest,
   type Paisa,
   type QuoteDto,
+  type SessionUser,
   type VendorEnquiryDto,
   type WeddingDto,
   type WeddingFunctionDto,
 } from '@eventhub/contracts';
 
+import { AuthService } from '../../auth/services/auth.service.js';
+import type { IssuedTokens } from '../../auth/services/token.service.js';
 import { VendorsService } from '../../vendors/services/vendors.service.js';
 import { Enquiry, type EnquiryDocument } from '../schemas/enquiry.schema.js';
 import { Quote, type QuoteDocument } from '../schemas/quote.schema.js';
@@ -71,6 +75,7 @@ export class EnquiriesService {
     @InjectModel(WeddingFunction.name)
     private readonly functions: Model<WeddingFunctionDocument>,
     private readonly vendors: VendorsService,
+    private readonly auth: AuthService,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -244,6 +249,94 @@ export class EnquiriesService {
     });
 
     return this.toDto(created);
+  }
+
+  /**
+   * An enquiry from someone who has never signed up.
+   *
+   * One call does what would otherwise be four screens: verify the phone,
+   * create or find the account, create a wedding to hang the booking off, and
+   * fan the enquiry out. The family sees a form and a code, not a funnel.
+   *
+   * A replay is stopped by the one-time code, which is consumed on use - so a
+   * double-tapped submit fails on the second attempt rather than sending two
+   * enquiries or creating two accounts.
+   */
+  async createAsGuest(
+    dto: GuestEnquiryRequest,
+    meta: { device?: string; ip?: string },
+  ): Promise<{ enquiry: EnquiryDto; user: SessionUser; tokens: IssuedTokens }> {
+    // Vendors are checked before an account is created, so a bad request does
+    // not leave a stranded user behind.
+    const unique = [...new Set(dto.vendorIds)];
+    if (unique.length === 0 || unique.length > MAX_ENQUIRY_VENDORS) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        fields: {
+          vendorIds: `Choose between 1 and ${MAX_ENQUIRY_VENDORS} vendors.`,
+        },
+      });
+    }
+    const vendors = await Promise.all(
+      unique.map((id) => this.vendors.requireBookable(id)),
+    );
+
+    const { user, tokens, userId } = await this.auth.signInWithVerifiedMobile(
+      {
+        fullName: dto.fullName,
+        mobile: dto.mobile,
+        otpChallengeId: dto.otpChallengeId,
+        otpCode: dto.otpCode,
+        roles: ['CUSTOMER'],
+      },
+      meta,
+    );
+
+    // Reuse a wedding they already have rather than accumulating one per
+    // enquiry - somebody enquiring twice is planning one wedding, not two.
+    const existing = await this.weddings
+      .findOne({ customerId: userId })
+      .sort({ createdAt: -1 });
+
+    const wedding =
+      existing ??
+      (await this.weddings.create({
+        customerId: userId,
+        coupleNames: { bride: 'To be confirmed', groom: 'To be confirmed' },
+        primaryDate: toUtcMidnight(dto.functionDate),
+        city: dto.city,
+        guestEstimate: dto.guestCount,
+        // Unknown at this point, and asking for it here would cost more
+        // enquiries than the number is worth.
+        budgetTotal: dto.budget ?? 0,
+      }));
+
+    const created = await this.enquiries.create({
+      weddingId: wedding._id,
+      customerId: userId,
+      category: dto.category,
+      functionType: dto.functionType,
+      functionDate: toUtcMidnight(dto.functionDate),
+      city: wedding.city,
+      guestCount: dto.guestCount,
+      budget: dto.budget,
+      notes: dto.notes,
+      vendors: vendors.map((v) => ({
+        vendorId: v._id,
+        businessName: v.businessName,
+        status: EnquiryVendorStatus.SENT,
+      })),
+      expiresAt: new Date(Date.now() + ENQUIRY_SLA_HOURS * HOUR_MS),
+    });
+
+    this.events.emit('enquiry.created', {
+      enquiryId: created.id as string,
+      vendorIds: unique,
+      category: dto.category,
+      functionDate: created.functionDate.toISOString(),
+    });
+
+    return { enquiry: this.toDto(created), user, tokens };
   }
 
   async listForCustomer(customerId: string): Promise<EnquiryDto[]> {

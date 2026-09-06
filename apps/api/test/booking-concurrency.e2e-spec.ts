@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule, getModelToken } from '@nestjs/mongoose';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
@@ -41,6 +42,23 @@ describe('Booking slot lock (e2e)', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [
+        // EventsModule pulls in AuthModule for the guest enquiry path, and
+        // auth needs signing keys before its strategy will even construct.
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [
+            () => ({
+              jwt: {
+                accessSecret: 'test-access-secret-at-least-32-characters',
+                accessTtl: 900,
+                refreshSecret: 'test-refresh-secret-at-least-32-chars',
+                refreshTtl: 2_592_000,
+              },
+              otp: { ttlSeconds: 600, maxAttempts: 5 },
+              nodeEnv: 'test',
+            }),
+          ],
+        }),
         MongooseModule.forRoot(mongo.getUri()),
         EventEmitterModule.forRoot(),
         EventsModule,

@@ -95,6 +95,9 @@ import type { AppError } from '../../../core/models/app-error';
       </button>
 
       <p class="alt">New here? <a routerLink="/auth/register">Create an account</a></p>
+      <p class="alt">
+        Just after quotes? <a routerLink="/enquire">Enquire without an account</a>
+      </p>
     </form>
   `,
   styles: `

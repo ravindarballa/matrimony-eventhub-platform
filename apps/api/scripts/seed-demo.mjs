@@ -26,6 +26,8 @@ import { dirname, join } from 'node:path';
 import mongoose from 'mongoose';
 import * as argon2 from 'argon2';
 
+import { COMMUNITIES_BY_RELIGION } from '@eventhub/contracts';
+
 import { PALETTE, solidPng } from './lib/png.mjs';
 
 /**
@@ -346,10 +348,14 @@ async function profile({
   rashi,
   marsHouse,
   photoColour,
-  /** 'APPROVED' by default; one profile is left PENDING so the queue has work. */
+  /** 'APPROVED' by default; some are left PENDING so the queue has work. */
   photoModeration = 'APPROVED',
   managedBy = 'SELF',
   about,
+  religion = 'Hindu',
+  motherTongue = 'Telugu',
+  diet = 'VEGETARIAN',
+  maritalStatus = 'NEVER_MARRIED',
 }) {
   const userId = await user(owner, mobile, ['SEEKER']);
   const _id = id();
@@ -362,13 +368,13 @@ async function profile({
     gender,
     dateOfBirth: yearsAgo(age),
     heightCm: gender === 'FEMALE' ? 160 + (age % 7) : 172 + (age % 8),
-    maritalStatus: 'NEVER_MARRIED',
-    religion: 'Hindu',
+    maritalStatus,
+    religion,
     community,
     gotra,
-    motherTongue: 'Telugu',
+    motherTongue,
     city,
-    diet: 'VEGETARIAN',
+    diet,
     about,
     education: { highestQualification: qualification, fieldOfStudy: 'Engineering' },
     career: { occupation, annualIncome: 1_800_000_00 },
@@ -553,6 +559,108 @@ await db.collection('interests').insertOne({
   updatedAt: now,
 });
 
+// --------------------------------------------------- one per community
+
+/**
+ * A profile for every community on the list.
+ *
+ * Four hand-written brides are enough to read the screen but not to exercise
+ * it: with everyone Hindu and in Hyderabad, the community filter has nothing to
+ * choose between and the tiles never show what a mixed page looks like. This
+ * fills every community so the filters, the gender split and the photo states
+ * all have something behind them.
+ *
+ * Every community gets both a bride and a groom. The server shows a viewer the
+ * opposite gender to their own, so one profile per community would leave half
+ * of them invisible to any given account - searching Nair as a groom would come
+ * back empty, which reads as a broken filter rather than a seeding choice.
+ */
+
+/**
+ * Where each language's communities are concentrated. Approximate, and only
+ * here so city and mother tongue vary in a way that looks plausible rather
+ * than random - a Nair listed as speaking Punjabi reads as a bug.
+ */
+const REGIONS = [
+  ['Telugu', 'Hyderabad', ['Reddy', 'Kamma', 'Kapu', 'Velama', 'Raju', 'Padmashali', 'Mala', 'Madiga', 'Devanga', 'Kummari']],
+  ['Tamil', 'Chennai', ['Iyer', 'Iyengar', 'Mudaliar', 'Nadar', 'Thevar', 'Vanniyar', 'Chettiar', 'Pillai', 'Gounder', 'Rowther']],
+  ['Malayalam', 'Kochi', ['Nair', 'Ezhava', 'Namboodiri', 'Knanaya', 'Syro-Malabar', 'Syrian Catholic', 'Marthoma', 'Jacobite', 'Latin Catholic', 'Orthodox']],
+  ['Kannada', 'Bengaluru', ['Lingayat', 'Vokkaliga', 'Gowda', 'Bhandari', 'Vishwakarma']],
+  ['Marathi', 'Pune', ['Maratha', 'Nagar', 'Teli', 'Kunbi']],
+  ['Gujarati', 'Ahmedabad', ['Patel', 'Lohana', 'Bhatia', 'Oswal', 'Porwal', 'Vania', 'Bohra', 'Dawoodi Bohra', 'Memon', 'Digambar', 'Shwetambar']],
+  ['Punjabi', 'Chandigarh', ['Jat Sikh', 'Ramgarhia', 'Ravidasia', 'Ahluwalia', 'Arora', 'Khatri', 'Saini', 'Kamboj', 'Majhabi', 'Ramdasia', 'Lubana', 'Jat']],
+  ['Bengali', 'Kolkata', ['Kayastha', 'Baidya', 'Bene Israel', 'Baghdadi']],
+  ['Odia', 'Bhubaneswar', ['Karan', 'Khandayat']],
+  ['Urdu', 'Lucknow', ['Ansari', 'Qureshi', 'Sayyid', 'Sheikh', 'Siddiqui', 'Pathan', 'Mughal', 'Shia', 'Sunni', 'Awan', 'Khoja']],
+];
+
+const REGION_OF = new Map();
+for (const [tongue, city, communities] of REGIONS) {
+  for (const c of communities) REGION_OF.set(c, { tongue, city });
+}
+
+const BRIDE_NAMES = [
+  'Aarthi', 'Ananya', 'Bhavana', 'Chitra', 'Deepa', 'Gayatri', 'Harini', 'Indu',
+  'Jyothi', 'Kavya', 'Lavanya', 'Meenakshi', 'Nandini', 'Pallavi', 'Rachana',
+  'Shruti', 'Swathi', 'Tanvi', 'Vaishnavi', 'Yamini', 'Aishwarya', 'Bhargavi',
+  'Charita', 'Devika', 'Ishita', 'Keerthi', 'Madhuri', 'Namratha', 'Poojitha', 'Ramya',
+];
+const GROOM_NAMES = [
+  'Aditya', 'Bharath', 'Chaitanya', 'Dinesh', 'Ganesh', 'Harsha', 'Karthik',
+  'Lokesh', 'Mahesh', 'Naveen', 'Pranav', 'Rakesh', 'Sandeep', 'Tarun', 'Varun',
+  'Yashwanth', 'Abhinav', 'Bhaskar', 'Girish', 'Hemanth', 'Jagan', 'Kiran',
+  'Manoj', 'Nikhil', 'Praveen', 'Rohit', 'Sudheer', 'Teja', 'Vikram', 'Sricharan',
+];
+
+const JOBS = [
+  ['Software Engineer', 'B.Tech'], ['Doctor', 'MBBS'], ['Chartered Accountant', 'CA'],
+  ['Teacher', 'M.A.'], ['Civil Engineer', 'B.E.'], ['Bank Officer', 'B.Com'],
+  ['Architect', 'B.Arch'], ['Pharmacist', 'B.Pharm'], ['Lawyer', 'LLB'],
+  ['Product Manager', 'MBA'], ['Data Analyst', 'M.Sc'], ['Dentist', 'BDS'],
+];
+const DIETS = ['VEGETARIAN', 'VEGETARIAN', 'NON_VEGETARIAN', 'EGGETARIAN'];
+const SWATCHES = Object.values(PALETTE);
+
+let n = 0;
+for (const [religion, communities] of Object.entries(COMMUNITIES_BY_RELIGION)) {
+  for (const community of communities) {
+    for (const female of [true, false]) {
+      const names = female ? BRIDE_NAMES : GROOM_NAMES;
+      const region = REGION_OF.get(community) ?? { tongue: 'Hindi', city: 'Delhi' };
+      const [occupation, qualification] = JOBS[n % JOBS.length];
+
+      // Most photos approved, a few pending so the moderation queue has a queue,
+      // and a few with none at all so the empty tile state is visible too.
+      const photoState = n % 7;
+
+      await profile({
+        owner: `${names[n % names.length]} ${community}`,
+        mobile: String(9800000001 + n),
+        displayName: names[n % names.length],
+        gender: female ? 'FEMALE' : 'MALE',
+        age: 23 + (n % 12),
+        city: region.city,
+        community,
+        religion,
+        motherTongue: region.tongue,
+        diet: DIETS[n % DIETS.length],
+        gotra: religion === 'Hindu' ? 'Kashyap' : undefined,
+        occupation,
+        qualification,
+        nakshatra: 1 + (n % 27),
+        rashi: 1 + (n % 12),
+        marsHouse: null,
+        photoColour: photoState === 6 ? null : SWATCHES[n % SWATCHES.length],
+        photoModeration: photoState === 5 ? 'PENDING' : 'APPROVED',
+        about: `${occupation} from ${region.city}. Family is originally from the same district, and looking for someone settled nearby.`,
+      });
+      n++;
+    }
+  }
+}
+
+console.log(`  ${n} community profiles seeded.`);
+
 // ----------------------------------------------------------------- wedding
 
 const weddingId = id();
@@ -705,11 +813,22 @@ line('Vendor (catering)', `${caterer.mobile}   → /vendor`);
 line('Vendor (photography)', `${photographer.mobile}   → /vendor`);
 line('Admin', '8008052727   → KYC queue, ledger');
 console.log('');
-line('Matrimony profiles', `${[anita, priya, sneha, divya].length} published brides`);
 line('Vendors', '4 verified, 6 packages');
 line('Wedding', '14 Feb next year, Hyderabad, 500 guests');
-line('Galleries', '10 vendor photos, 5 profile photos');
-line('Awaiting moderation', "1 profile photo (Sneha's)");
+// Counted rather than described: these numbers moved every time a profile was
+// added, and a report that quietly goes stale is worse than no report.
+const profileDocs = await db.collection('matrimony_profiles').find({}).toArray();
+const photoCount = profileDocs.reduce((sum, d) => sum + (d.photos?.length ?? 0), 0);
+const pendingCount = profileDocs.reduce(
+  (sum, d) => sum + (d.photos ?? []).filter((ph) => ph.moderation === 'PENDING').length,
+  0,
+);
+const brides = profileDocs.filter((d) => d.gender === 'FEMALE').length;
+
+line('Matrimony profiles', `${profileDocs.length} - ${brides} brides, ${profileDocs.length - brides} grooms`);
+line('Communities covered', String(new Set(profileDocs.map((d) => d.community)).size));
+line('Galleries', `10 vendor photos, ${photoCount} profile photos`);
+line('Awaiting moderation', `${pendingCount} profile photos`);
 if (WITH_FUNNEL) {
   line('Enquiries', '2 - one with both venues quoting, one unanswered');
 } else {

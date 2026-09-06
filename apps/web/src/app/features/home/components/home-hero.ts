@@ -7,8 +7,12 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { firstValueFrom } from 'rxjs';
+import { INDIAN_MOBILE_REGEX } from '@eventhub/contracts';
 
+import { AuthApi } from '../../auth/data/auth-api';
 import { AuthStore } from '../../auth/data/auth.store';
+import type { AppError } from '../../../core/models/app-error';
 import { landingRouteFor } from '../../../core/guards/auth.guards';
 import { ServiceGlyph, type GlyphName } from './service-glyph';
 
@@ -30,56 +34,10 @@ type TabId = 'SEEKER' | 'CUSTOMER' | 'VENDOR_OWNER';
  * profile, so it gets its own form - an account with no community, mother
  * tongue or date of birth cannot be searched, which makes it an empty seat.
  */
-const TABS = [
-  {
-    id: 'SEEKER' as const,
-    label: 'Find a match',
-    heading: '',
-    blurb: '',
-    points: [] as string[],
-    action: '',
-    to: '/auth/register/matrimony',
-    params: {} as Record<string, string>,
-    fine: '',
-  },
-  {
-    id: 'CUSTOMER' as const,
-    label: 'Plan a wedding',
-    heading: 'Plan the wedding',
-    blurb:
-      'Tell us the date and the city. Vendors who are actually free that day come back with prices.',
-    points: [
-      'Ask up to five vendors in one go',
-      'Compare quotes side by side, GST included',
-      'Your money is held until the booking is confirmed',
-    ],
-    action: 'Create an account',
-    to: '/auth/register',
-    params: { intent: 'CUSTOMER' },
-    fine: 'Just a name and a mobile number.',
-  },
-  {
-    id: 'VENDOR_OWNER' as const,
-    label: 'List my business',
-    heading: 'List your business',
-    blurb:
-      'Reach families planning a wedding in your city, and answer enquiries with a proper quote.',
-    points: [
-      'Free to list; you are paid through the platform',
-      'Verification badge once your KYC clears',
-      'A portfolio and a price list buyers can compare',
-    ],
-    action: 'List my business',
-    to: '/auth/register',
-    params: { intent: 'VENDOR_OWNER' },
-    fine: 'Just a name and a mobile number to start.',
-  },
-];
-
-const RELIGIONS = ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Jain', 'Buddhist', 'Parsi'];
-const TONGUES = [
-  'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam',
-  'Marathi', 'Bengali', 'Gujarati', 'Punjabi', 'Odia',
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'SEEKER', label: 'Find a match' },
+  { id: 'CUSTOMER', label: 'Plan a wedding' },
+  { id: 'VENDOR_OWNER', label: 'List my business' },
 ];
 
 /**
@@ -191,51 +149,100 @@ const TONGUES = [
                 </label>
               </div>
 
-              <div class="two">
-                <label>
-                  <span>Religion</span>
-                  <select [value]="religion()" (change)="religion.set($any($event.target).value)">
-                    <option value="" [selected]="religion() === ''">Any</option>
-                    @for (r of religions; track r) {
-                      <option [value]="r" [selected]="r === religion()">{{ r }}</option>
-                    }
-                  </select>
-                </label>
-                <label>
-                  <span>Mother tongue</span>
-                  <select [value]="tongue()" (change)="tongue.set($any($event.target).value)">
-                    <option value="" [selected]="tongue() === ''">Any</option>
-                    @for (t of tongues; track t) {
-                      <option [value]="t" [selected]="t === tongue()">{{ t }}</option>
-                    }
-                  </select>
-                </label>
-              </div>
-
               @if (ageError()) { <p class="err" role="alert">{{ ageError() }}</p> }
 
               <button mat-flat-button type="submit" class="go">Search profiles</button>
               <p class="fine">
-                Free to search.
-                <a routerLink="/auth/register/matrimony">Create a profile</a> when you
-                want to say hello.
+                Searching needs a profile — it is what decides who you are shown.
+                Three short steps.
               </p>
             </form>
-          } @else {
-            <div class="body" role="tabpanel" [id]="'panel-' + tab()" [attr.aria-labelledby]="'tab-' + tab()">
-              <h2>{{ activeTab().heading }}</h2>
-              <p class="lead">{{ activeTab().blurb }}</p>
+          } @else if (tab() === 'CUSTOMER') {
+            <div class="body" role="tabpanel" id="panel-CUSTOMER" aria-labelledby="tab-CUSTOMER">
+              <h2>Plan the wedding</h2>
+              <p class="lead">
+                Tell us the date and the city. Vendors who are actually free that
+                day come back with prices.
+              </p>
               <ul class="ticks">
-                @for (point of activeTab().points; track point) {
-                  <li>{{ point }}</li>
-                }
+                <li>Ask up to five vendors in one go</li>
+                <li>Compare quotes side by side, GST included</li>
+                <li>Your money is held until the booking is confirmed</li>
               </ul>
+              <a mat-flat-button class="go" routerLink="/enquire">Get quotes</a>
+              <p class="fine">No account needed. We verify your mobile only when you send.</p>
+            </div>
+          } @else {
+            <div class="body" role="tabpanel" id="panel-VENDOR_OWNER" aria-labelledby="tab-VENDOR_OWNER">
+              <h2>List your business</h2>
 
-              <a mat-flat-button class="go" [routerLink]="activeTab().to"
-                 [queryParams]="activeTab().params">
-                {{ activeTab().action }}
-              </a>
-              <p class="fine">{{ activeTab().fine }}</p>
+              @if (!vendorChallenge()) {
+                <p class="lead">
+                  Reach families planning a wedding in your city. Verify your
+                  number and you are in.
+                </p>
+
+                <label>
+                  <span>Business or owner name</span>
+                  <input
+                    type="text"
+                    autocomplete="organization"
+                    placeholder="Sunrise Banquets"
+                    [value]="vendorName()"
+                    (input)="vendorName.set($any($event.target).value)"
+                  />
+                </label>
+
+                <label>
+                  <span>Mobile number</span>
+                  <input
+                    type="tel"
+                    inputmode="numeric"
+                    maxlength="10"
+                    autocomplete="tel-national"
+                    placeholder="9812345678"
+                    [value]="vendorMobile()"
+                    (input)="vendorMobile.set($any($event.target).value)"
+                  />
+                </label>
+
+                @if (vendorError()) { <p class="err" role="alert">{{ vendorError() }}</p> }
+
+                <button mat-flat-button class="go" [disabled]="vendorBusy()"
+                        (click)="sendVendorCode()">
+                  Send me a code
+                </button>
+                <p class="fine">By continuing you accept the terms and privacy policy.</p>
+              } @else {
+                <p class="lead">Enter the 6-digit code sent to +91 {{ vendorMobile() }}.</p>
+
+                <label>
+                  <span>6-digit code</span>
+                  <input
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    [value]="vendorCode()"
+                    (input)="vendorCode.set($any($event.target).value)"
+                  />
+                </label>
+
+                @if (vendorDevCode()) {
+                  <p class="dev">
+                    Development mode — your code is <strong>{{ vendorDevCode() }}</strong>
+                  </p>
+                }
+                @if (vendorError()) { <p class="err" role="alert">{{ vendorError() }}</p> }
+
+                <button mat-flat-button class="go" [disabled]="vendorBusy()"
+                        (click)="verifyVendor()">
+                  Verify and continue
+                </button>
+                <button mat-button type="button" (click)="changeVendorNumber()">
+                  Change number
+                </button>
+              }
             </div>
           }
         </div>
@@ -324,23 +331,28 @@ const TONGUES = [
 export class HomeHero {
   protected readonly store = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly api = inject(AuthApi);
 
   protected readonly backdrop = BACKDROP;
-  protected readonly religions = RELIGIONS;
-  protected readonly tongues = TONGUES;
   protected readonly ages = Array.from({ length: 39 }, (_, i) => i + 18);
 
   protected readonly tabs = TABS;
   protected readonly tab = signal<TabId>('SEEKER');
-  protected readonly activeTab = computed(
-    () => TABS.find((t) => t.id === this.tab()) ?? TABS[0],
-  );
 
   protected readonly lookingFor = signal<'BRIDE' | 'GROOM'>('BRIDE');
   protected readonly ageMin = signal(24);
   protected readonly ageMax = signal(32);
-  protected readonly religion = signal('');
-  protected readonly tongue = signal('');
+
+  // The vendor path validates a number in place: it is the whole of what a
+  // vendor needs to get started, so bouncing them to a separate form for one
+  // field would be ceremony for its own sake.
+  protected readonly vendorName = signal('');
+  protected readonly vendorMobile = signal('');
+  protected readonly vendorCode = signal('');
+  protected readonly vendorChallenge = signal<string | null>(null);
+  protected readonly vendorDevCode = signal<string | null>(null);
+  protected readonly vendorBusy = signal(false);
+  protected readonly vendorError = signal<string | null>(null);
 
   protected readonly ageError = computed(() =>
     this.ageMin() > this.ageMax() ? 'The lower age has to be the smaller one.' : null,
@@ -349,28 +361,95 @@ export class HomeHero {
   protected readonly myPortal = computed(() => landingRouteFor(this.store.roles()));
 
   /**
-   * Runs the search.
+   * Sends them to build a profile, carrying what they asked for.
    *
-   * The criteria go into the URL rather than a store, so a signed-out visitor
-   * keeps them: the route guard sends them to sign in holding this URL as
-   * returnUrl, and they come back to the results they asked for instead of a
-   * blank search to fill in twice.
-   *
-   * "Looking for a bride" is not one of the filters - the server decides who a
-   * member may see from their own profile - so it travels as intent for the
-   * registration form rather than pretending to be a filter here.
+   * The search box cannot simply run a search: who a member is shown is
+   * decided from their own profile - the server returns the opposite gender to
+   * their own - so there is nothing to search until one exists. Rather than
+   * bounce them to a login they have no account for, the criteria travel into
+   * registration, which uses them to pick a starting gender and hands them
+   * straight to the results afterwards.
    */
   protected findMatches(): void {
     if (this.ageError()) return;
 
-    void this.router.navigate(['/matrimony/search'], {
+    void this.router.navigate(['/auth/register/matrimony'], {
       queryParams: {
+        seeking: this.lookingFor(),
         ageMin: this.ageMin(),
         ageMax: this.ageMax(),
-        ...(this.religion() ? { religion: this.religion() } : {}),
-        ...(this.tongue() ? { motherTongue: this.tongue() } : {}),
-        seeking: this.lookingFor(),
       },
     });
   }
+
+  /** Registers the vendor and sends the code, without leaving the tab. */
+  protected async sendVendorCode(): Promise<void> {
+    this.vendorError.set(null);
+    if (this.vendorName().trim().length < 3) {
+      this.vendorError.set('Enter the business or owner name.');
+      return;
+    }
+    if (!INDIAN_MOBILE_REGEX.test(this.vendorMobile())) {
+      this.vendorError.set('Enter a 10-digit Indian mobile number.');
+      return;
+    }
+
+    this.vendorBusy.set(true);
+    try {
+      const res = await firstValueFrom(
+        this.api.register({
+          fullName: this.vendorName().trim(),
+          mobile: this.vendorMobile(),
+          intent: 'VENDOR_OWNER',
+          consent: true,
+        }),
+      );
+      this.vendorChallenge.set(res.challengeId);
+      this.vendorDevCode.set(res.devCode ?? null);
+    } catch (e) {
+      this.vendorError.set((e as AppError).message);
+    } finally {
+      this.vendorBusy.set(false);
+    }
+  }
+
+  protected changeVendorNumber(): void {
+    this.vendorChallenge.set(null);
+    this.vendorDevCode.set(null);
+    this.vendorCode.set('');
+    this.vendorError.set(null);
+  }
+
+  /**
+   * Verifies the code and hands them to onboarding.
+   *
+   * Onboarding rather than the vendor dashboard: the account exists at this
+   * point but the business does not, and every other vendor screen is about a
+   * listing they have not created yet.
+   */
+  protected async verifyVendor(): Promise<void> {
+    this.vendorError.set(null);
+    if (!/^\d{6}$/.test(this.vendorCode())) {
+      this.vendorError.set('Enter the 6-digit code we sent you.');
+      return;
+    }
+
+    this.vendorBusy.set(true);
+    try {
+      await this.store.verifyOtp(this.vendorChallenge()!, this.vendorCode());
+      await this.router.navigate(['/vendor/onboarding']);
+    } catch (e) {
+      const err = e as AppError;
+      this.vendorError.set(
+        err.code === 'AUTH_OTP_INVALID'
+          ? 'That code is not right. Check it and try again.'
+          : err.code === 'AUTH_OTP_EXPIRED'
+            ? 'That code has expired. Ask for a new one.'
+            : err.message,
+      );
+    } finally {
+      this.vendorBusy.set(false);
+    }
+  }
+
 }

@@ -2,12 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
+  input,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatStepperModule } from '@angular/material/stepper';
 import { firstValueFrom } from 'rxjs';
 import {
   Diet,
@@ -38,225 +41,252 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
   { value: 'RELATIVE', label: 'A relative' },
 ];
 
-type Step = 'about' | 'background' | 'verify';
-
 /**
  * Registration for the matrimony side.
  *
  * Separate from the ordinary signup because the two are not the same job. A
  * customer or a vendor needs an account and a verified number, and anything
- * more is a barrier between them and a quote. A member needs a profile - a
- * profile with no community, mother tongue or date of birth cannot be searched
- * or matched, so an account without one is an empty seat.
+ * more is a barrier between them and what they came for. A member needs a
+ * profile: one with no community, mother tongue or date of birth cannot be
+ * searched or matched, so an account without one is an empty seat.
  *
- * It asks for the minimum a profile needs to appear in search and nothing else.
- * Everything optional - horoscope, career, family, photos - belongs on the
- * profile editor afterwards, where the completeness score is what argues for
- * filling it in. Front-loading those fields here buys nothing and loses people
- * on step two.
+ * A stepper rather than one long form. Everything here is required, so a single
+ * page would be a wall of fifteen controls; three short steps let each one ask
+ * about a single subject and let someone see how much is left. The stepper is
+ * linear and each step reports its own completeness, so Next simply will not
+ * move until that step is answered.
+ *
+ * It asks for the minimum a profile needs to be searchable and stops.
+ * Horoscope, career, family and photos belong on the profile editor, where the
+ * completeness score is what argues for filling them in; front-loading them
+ * here buys nothing and loses people on step two.
  *
  * The number is verified last, on purpose. Someone who has already answered
- * five questions about their family has invested something; asking for the code
+ * five questions about their family has invested something; asking for a code
  * first, before the form has shown what it is for, is where signups die.
  */
 @Component({
   selector: 'eh-matrimony-register-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, MatButtonModule, MatProgressBarModule],
+  imports: [RouterLink, MatButtonModule, MatProgressBarModule, MatStepperModule],
   template: `
-    <form class="card" (submit)="$event.preventDefault(); next()">
+    <div class="wrap">
       <header>
         <h2>Create your matrimony profile</h2>
-        <ol class="steps" aria-label="Progress">
-          <li [class.on]="step() === 'about'" [class.done]="step() !== 'about'">1. Profile</li>
-          <li [class.on]="step() === 'background'" [class.done]="step() === 'verify'">
-            2. Background
-          </li>
-          <li [class.on]="step() === 'verify'">3. Verify</li>
-        </ol>
+        <p class="sub">Three short steps. You can add photos and horoscope afterwards.</p>
       </header>
 
       @if (busy()) { <mat-progress-bar mode="indeterminate" /> }
       @if (error(); as e) { <p class="err" role="alert">{{ e }}</p> }
 
-      @if (step() === 'about') {
-        <label>
-          <span>This profile is for</span>
-          <select [value]="managedBy()" (change)="managedBy.set($any($event.target).value)">
-            @for (m of managedByOptions; track m.value) {
-              <option [value]="m.value" [selected]="m.value === managedBy()">{{ m.label }}</option>
-            }
-          </select>
-        </label>
+      <mat-stepper #stepper [linear]="true" orientation="vertical">
+        <!-- ------------------------------------------------------ 1. profile -->
+        <mat-step [completed]="aboutDone()" label="Profile">
+          <div class="fields">
+            <label>
+              <span>This profile is for</span>
+              <select [value]="managedBy()" (change)="managedBy.set($any($event.target).value)">
+                @for (m of managedByOptions; track m.value) {
+                  <option [value]="m.value" [selected]="m.value === managedBy()">
+                    {{ m.label }}
+                  </option>
+                }
+              </select>
+            </label>
 
-        <label>
-          <span>{{ subject() }} is a</span>
-          <select [value]="gender()" (change)="gender.set($any($event.target).value)">
-            <option value="FEMALE" [selected]="gender() === 'FEMALE'">Bride</option>
-            <option value="MALE" [selected]="gender() === 'MALE'">Groom</option>
-          </select>
-        </label>
+            <label>
+              <span>{{ subject() }} a</span>
+              <select [value]="gender()" (change)="gender.set($any($event.target).value)">
+                <option value="FEMALE" [selected]="gender() === 'FEMALE'">Bride</option>
+                <option value="MALE" [selected]="gender() === 'MALE'">Groom</option>
+              </select>
+            </label>
 
-        <label>
-          <span>Name shown to matches</span>
-          <input
-            type="text"
-            autocomplete="name"
-            placeholder="First name is enough"
-            [value]="displayName()"
-            (input)="displayName.set($any($event.target).value)"
-          />
-        </label>
+            <label>
+              <span>Name shown to matches</span>
+              <input
+                type="text"
+                autocomplete="name"
+                placeholder="A first name is enough"
+                [value]="displayName()"
+                (input)="displayName.set($any($event.target).value)"
+              />
+            </label>
 
-        <label>
-          <span>Date of birth</span>
-          <input
-            type="date"
-            [max]="latestBirthDate()"
-            [value]="dob()"
-            (input)="dob.set($any($event.target).value)"
-          />
-          <small>Minimum age is {{ minimumAge() }} for a {{ genderWord() }}.</small>
-        </label>
-      }
+            <label>
+              <span>Date of birth</span>
+              <input
+                type="date"
+                [max]="latestBirthDate()"
+                [value]="dob()"
+                (input)="dob.set($any($event.target).value)"
+              />
+              <small>Minimum age is {{ minimumAge() }} for a {{ genderWord() }}.</small>
+            </label>
+          </div>
 
-      @if (step() === 'background') {
-        <div class="two">
-          <label>
-            <span>Religion</span>
-            <select [value]="religion()" (change)="religion.set($any($event.target).value)">
-              @for (r of religions; track r) {
-                <option [value]="r" [selected]="r === religion()">{{ r }}</option>
+          <div class="actions">
+            <button mat-flat-button matStepperNext class="go" (click)="checkAbout()">
+              Continue
+            </button>
+          </div>
+        </mat-step>
+
+        <!-- --------------------------------------------------- 2. background -->
+        <mat-step [completed]="backgroundDone()" label="Background">
+          <div class="fields two">
+            <label>
+              <span>Religion</span>
+              <select [value]="religion()" (change)="religion.set($any($event.target).value)">
+                @for (r of religions; track r) {
+                  <option [value]="r" [selected]="r === religion()">{{ r }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              <span>Community</span>
+              <input
+                type="text"
+                placeholder="Reddy, Brahmin, Nair…"
+                [value]="community()"
+                (input)="community.set($any($event.target).value)"
+              />
+            </label>
+
+            <label>
+              <span>Mother tongue</span>
+              <select [value]="tongue()" (change)="tongue.set($any($event.target).value)">
+                @for (t of tongues; track t) {
+                  <option [value]="t" [selected]="t === tongue()">{{ t }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              <span>City</span>
+              <input
+                type="text"
+                placeholder="Hyderabad"
+                [value]="city()"
+                (input)="city.set($any($event.target).value)"
+              />
+            </label>
+
+            <label>
+              <span>Height</span>
+              <select [value]="heightCm()" (change)="heightCm.set(+$any($event.target).value)">
+                @for (h of heights; track h.cm) {
+                  <option [value]="h.cm" [selected]="h.cm === heightCm()">{{ h.label }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              <span>Marital status</span>
+              <select
+                [value]="maritalStatus()"
+                (change)="maritalStatus.set($any($event.target).value)"
+              >
+                @for (m of maritalStatuses; track m) {
+                  <option [value]="m" [selected]="m === maritalStatus()">{{ label(m) }}</option>
+                }
+              </select>
+            </label>
+
+            <label>
+              <span>Diet</span>
+              <select [value]="diet()" (change)="diet.set($any($event.target).value)">
+                @for (d of diets; track d) {
+                  <option [value]="d" [selected]="d === diet()">{{ label(d) }}</option>
+                }
+              </select>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button mat-button matStepperPrevious type="button">Back</button>
+            <button mat-flat-button matStepperNext class="go" (click)="checkBackground()">
+              Continue
+            </button>
+          </div>
+        </mat-step>
+
+        <!-- ------------------------------------------------------- 3. verify -->
+        <mat-step [completed]="false" label="Verify your number">
+          @if (!challengeId()) {
+            <div class="fields">
+              <label>
+                <span>Mobile number</span>
+                <input
+                  type="tel"
+                  inputmode="numeric"
+                  maxlength="10"
+                  autocomplete="tel-national"
+                  placeholder="9812345678"
+                  [value]="mobile()"
+                  (input)="mobile.set($any($event.target).value)"
+                />
+                <small>Never shown on your profile. Matches only ever see your name.</small>
+              </label>
+
+              <label class="check">
+                <input
+                  type="checkbox"
+                  [checked]="consent()"
+                  (change)="consent.set($any($event.target).checked)"
+                />
+                <span>I accept the terms and the privacy policy.</span>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button mat-button matStepperPrevious type="button">Back</button>
+              <button mat-flat-button class="go" [disabled]="busy()" (click)="sendCode()">
+                Send me a code
+              </button>
+            </div>
+          } @else {
+            <div class="fields">
+              <label>
+                <span>6-digit code</span>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="6"
+                  autocomplete="one-time-code"
+                  [value]="code()"
+                  (input)="code.set($any($event.target).value)"
+                />
+                <small>Sent to +91 {{ mobile() }}.</small>
+              </label>
+
+              @if (devCode()) {
+                <p class="dev">
+                  Development mode — your code is <strong>{{ devCode() }}</strong>
+                </p>
               }
-            </select>
-          </label>
-          <label>
-            <span>Community</span>
-            <input
-              type="text"
-              placeholder="Reddy, Brahmin, Nair…"
-              [value]="community()"
-              (input)="community.set($any($event.target).value)"
-            />
-          </label>
-        </div>
+            </div>
 
-        <div class="two">
-          <label>
-            <span>Mother tongue</span>
-            <select [value]="tongue()" (change)="tongue.set($any($event.target).value)">
-              @for (t of tongues; track t) {
-                <option [value]="t" [selected]="t === tongue()">{{ t }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            <span>City</span>
-            <input
-              type="text"
-              placeholder="Hyderabad"
-              [value]="city()"
-              (input)="city.set($any($event.target).value)"
-            />
-          </label>
-        </div>
-
-        <div class="two">
-          <label>
-            <span>Height</span>
-            <select [value]="heightCm()" (change)="heightCm.set(+$any($event.target).value)">
-              @for (h of heights; track h.cm) {
-                <option [value]="h.cm" [selected]="h.cm === heightCm()">{{ h.label }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            <span>Marital status</span>
-            <select
-              [value]="maritalStatus()"
-              (change)="maritalStatus.set($any($event.target).value)"
-            >
-              @for (m of maritalStatuses; track m) {
-                <option [value]="m" [selected]="m === maritalStatus()">{{ label(m) }}</option>
-              }
-            </select>
-          </label>
-        </div>
-
-        <label>
-          <span>Diet</span>
-          <select [value]="diet()" (change)="diet.set($any($event.target).value)">
-            @for (d of diets; track d) {
-              <option [value]="d" [selected]="d === diet()">{{ label(d) }}</option>
-            }
-          </select>
-        </label>
-      }
-
-      @if (step() === 'verify') {
-        @if (!challengeId()) {
-          <label>
-            <span>Mobile number</span>
-            <input
-              type="tel"
-              inputmode="numeric"
-              maxlength="10"
-              autocomplete="tel-national"
-              placeholder="9812345678"
-              [value]="mobile()"
-              (input)="mobile.set($any($event.target).value)"
-            />
-            <small>We send a one-time code. This number is never shown on your profile.</small>
-          </label>
-
-          <label class="check">
-            <input type="checkbox" [checked]="consent()" (change)="consent.set($any($event.target).checked)" />
-            <span>I accept the terms and the privacy policy.</span>
-          </label>
-        } @else {
-          <label>
-            <span>6-digit code</span>
-            <input
-              type="text"
-              inputmode="numeric"
-              maxlength="6"
-              autocomplete="one-time-code"
-              [value]="code()"
-              (input)="code.set($any($event.target).value)"
-            />
-            <small>Sent to +91 {{ mobile() }}.</small>
-          </label>
-
-          @if (devCode()) {
-            <p class="dev">Development mode — your code is <strong>{{ devCode() }}</strong></p>
+            <div class="actions">
+              <button mat-button type="button" (click)="changeNumber()">Change number</button>
+              <button mat-flat-button class="go" [disabled]="busy()" (click)="verify()">
+                Verify and start searching
+              </button>
+            </div>
           }
-        }
-      }
-
-      <div class="actions">
-        @if (step() !== 'about' && !challengeId()) {
-          <button mat-button type="button" (click)="back()">Back</button>
-        }
-        <button mat-flat-button type="submit" class="go" [disabled]="busy()">
-          {{ nextLabel() }}
-        </button>
-      </div>
+        </mat-step>
+      </mat-stepper>
 
       <p class="alt">
         Only after quotes? <a routerLink="/enquire">Enquire without an account</a><br />
         Already registered? <a routerLink="/auth/login">Sign in</a>
       </p>
-    </form>
+    </div>
   `,
   styles: `
-    .card { display: flex; flex-direction: column; gap: 0.9rem;
-            width: min(30rem, 100%); }
+    .wrap { width: min(34rem, 100%); display: flex; flex-direction: column; gap: 0.6rem; }
     h2 { margin: 0; font-size: 1.4rem; font-weight: 600; }
-    .steps { list-style: none; display: flex; gap: 0.9rem; flex-wrap: wrap;
-             margin: 0.7rem 0 0; padding: 0; font-size: 0.78rem;
-             color: rgb(0 0 0 / 0.45); }
-    .steps li.on { color: #2f2d78; font-weight: 700; }
-    .steps li.done { color: #1b5e20; }
+    .sub { margin: 0.3rem 0 0.4rem; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
+    .fields { display: flex; flex-direction: column; gap: 0.8rem; padding: 0.3rem 0 0.2rem; }
+    .fields.two { display: grid; grid-template-columns: 1fr 1fr; }
     label { display: flex; flex-direction: column; gap: 0.28rem; font-size: 0.7rem;
             text-transform: uppercase; letter-spacing: 0.05em; color: rgb(0 0 0 / 0.55); }
     input[type='text'], input[type='tel'], input[type='date'], select {
@@ -265,18 +295,17 @@ type Step = 'about' | 'background' | 'verify';
             text-transform: none; letter-spacing: normal; }
     small { text-transform: none; letter-spacing: normal; font-size: 0.75rem;
             color: rgb(0 0 0 / 0.5); }
-    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-    .check { flex-direction: row; align-items: flex-start; gap: 0.5rem;
+    .check { grid-column: 1 / -1; flex-direction: row; align-items: flex-start; gap: 0.5rem;
              text-transform: none; letter-spacing: normal; font-size: 0.85rem;
              color: rgb(0 0 0 / 0.7); }
     .check input { margin-top: 0.15rem; }
-    .actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.3rem; }
-    .go { flex: 1; background: #2f2d78 !important; color: #fff !important; font-weight: 700; }
+    .actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.9rem; }
+    .go { background: #2f2d78 !important; color: #fff !important; font-weight: 700; }
     .err { margin: 0; font-size: 0.85rem; color: #b3261e; }
     .dev { margin: 0; font-size: 0.85rem; color: #8a5a00; background: #fbf1dc;
            border-left: 3px solid #c98a16; padding: 0.5rem 0.7rem; border-radius: 0 6px 6px 0; }
     .alt { font-size: 0.88rem; text-align: center; margin: 0.4rem 0 0; line-height: 1.7; }
-    @media (max-width: 520px) { .two { grid-template-columns: 1fr; } }
+    @media (max-width: 520px) { .fields.two { grid-template-columns: 1fr; } }
   `,
 })
 export class MatrimonyRegisterPage {
@@ -284,6 +313,16 @@ export class MatrimonyRegisterPage {
   private readonly store = inject(AuthStore);
   private readonly matrimony = inject(MatrimonyApi);
   private readonly router = inject(Router);
+
+  /**
+   * What the home page's search box was asking for, bound from the query
+   * string. Someone looking for a bride is, far more often than not, a groom -
+   * so the seeking value picks the opposite as the starting gender and carries
+   * the rest through to the search they land on.
+   */
+  readonly seeking = input<string | undefined>(undefined);
+  readonly ageMin = input<string | undefined>(undefined);
+  readonly ageMax = input<string | undefined>(undefined);
 
   protected readonly managedByOptions = MANAGED_BY;
   protected readonly religions = RELIGIONS;
@@ -298,7 +337,6 @@ export class MatrimonyRegisterPage {
     return { cm, label: `${Math.floor(inches / 12)}' ${inches % 12}" (${cm} cm)` };
   });
 
-  protected readonly step = signal<Step>('about');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -324,8 +362,21 @@ export class MatrimonyRegisterPage {
   protected readonly devCode = signal<string | null>(null);
   protected readonly code = signal('');
 
+  private seeded = false;
+
+  constructor() {
+    effect(() => {
+      if (this.seeded) return;
+      const wants = this.seeking();
+      if (wants !== 'BRIDE' && wants !== 'GROOM') return;
+      this.seeded = true;
+      // Looking for a bride means you are most likely the groom.
+      this.gender.set(wants === 'BRIDE' ? 'MALE' : 'FEMALE');
+    });
+  }
+
   protected readonly subject = computed(() =>
-    this.managedBy() === 'SELF' ? 'I' : 'They',
+    this.managedBy() === 'SELF' ? "I'm" : "They're",
   );
   protected readonly genderWord = computed(() =>
     this.gender() === 'FEMALE' ? 'bride' : 'groom',
@@ -334,9 +385,9 @@ export class MatrimonyRegisterPage {
 
   /**
    * The most recent birth date that still clears the legal minimum. Below 18 for
-   * a bride or 21 for a groom a marriage is not legal in India, and the server
-   * refuses regardless - this only stops the date picker offering a date it
-   * would reject.
+   * a bride or 21 for a groom a marriage is not legal in India and the server
+   * refuses regardless; this only stops the picker offering a date it would
+   * reject.
    */
   protected readonly latestBirthDate = computed(() => {
     const d = new Date();
@@ -344,52 +395,46 @@ export class MatrimonyRegisterPage {
     return d.toISOString().slice(0, 10);
   });
 
-  protected nextLabel(): string {
-    if (this.step() === 'about') return 'Continue';
-    if (this.step() === 'background') return 'Continue';
-    return this.challengeId() ? 'Verify and create my profile' : 'Send me a code';
-  }
+  /**
+   * Whether each step may be left. The stepper is linear and reads these, so an
+   * unanswered step simply does not advance - the click handlers exist only to
+   * say why.
+   */
+  protected readonly aboutDone = computed(
+    () =>
+      this.displayName().trim().length >= 2 &&
+      !!this.dob() &&
+      this.ageFromDob() >= this.minimumAge(),
+  );
+  protected readonly backgroundDone = computed(
+    () => !!this.community().trim() && !!this.city().trim(),
+  );
 
-  protected back(): void {
-    this.error.set(null);
-    this.step.set(this.step() === 'verify' ? 'background' : 'about');
-  }
-
-  protected next(): void {
-    this.error.set(null);
-    if (this.step() === 'about') return this.leaveAbout();
-    if (this.step() === 'background') return this.leaveBackground();
-    void (this.challengeId() ? this.verify() : this.sendCode());
-  }
-
-  private leaveAbout(): void {
+  protected checkAbout(): void {
+    if (this.aboutDone()) return void this.error.set(null);
     if (this.displayName().trim().length < 2) {
       this.error.set('Enter the name matches will see.');
-      return;
-    }
-    if (!this.dob()) {
+    } else if (!this.dob()) {
       this.error.set('Enter a date of birth.');
-      return;
+    } else {
+      this.error.set(`A ${this.genderWord()} has to be at least ${this.minimumAge()}.`);
     }
-    if (this.ageFromDob() < this.minimumAge()) {
-      this.error.set(
-        `A ${this.genderWord()} has to be at least ${this.minimumAge()}.`,
-      );
-      return;
-    }
-    this.step.set('background');
   }
 
-  private leaveBackground(): void {
-    if (!this.community().trim()) {
-      this.error.set('Enter the community, or "Any" if it does not matter.');
-      return;
-    }
-    if (!this.city().trim()) {
-      this.error.set('Enter the city they live in.');
-      return;
-    }
-    this.step.set('verify');
+  protected checkBackground(): void {
+    if (this.backgroundDone()) return void this.error.set(null);
+    this.error.set(
+      !this.community().trim()
+        ? 'Enter the community, or "Any" if it does not matter.'
+        : 'Enter the city they live in.',
+    );
+  }
+
+  protected changeNumber(): void {
+    this.challengeId.set(null);
+    this.devCode.set(null);
+    this.code.set('');
+    this.error.set(null);
   }
 
   private ageFromDob(): number {
@@ -397,12 +442,13 @@ export class MatrimonyRegisterPage {
     if (Number.isNaN(born.getTime())) return 0;
     const now = new Date();
     let age = now.getFullYear() - born.getFullYear();
-    const monthDiff = now.getMonth() - born.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < born.getDate())) age--;
+    const months = now.getMonth() - born.getMonth();
+    if (months < 0 || (months === 0 && now.getDate() < born.getDate())) age--;
     return age;
   }
 
-  private async sendCode(): Promise<void> {
+  protected async sendCode(): Promise<void> {
+    this.error.set(null);
     if (!INDIAN_MOBILE_REGEX.test(this.mobile())) {
       this.error.set('Enter a 10-digit Indian mobile number.');
       return;
@@ -432,17 +478,18 @@ export class MatrimonyRegisterPage {
   }
 
   /**
-   * Verifies the code, then writes the profile.
+   * Verifies the code, writes the profile, and lands them on the search.
    *
-   * The profile is saved after the session exists because the endpoint that
-   * takes it is authenticated - there is no way to create one for an account
-   * that has not proved its number yet, which is the correct order anyway.
+   * The profile is saved after verification because the endpoint that takes it
+   * is authenticated - there is no creating one for an account that has not
+   * proved its number, which is the right order anyway.
    *
-   * A profile that fails to save is not treated as a failed registration: the
-   * account is real by then, so the honest thing is to land them on the editor
-   * holding what they typed rather than pretend nothing happened.
+   * A profile that fails to save is not a failed registration: the account is
+   * real by then, so it says so and sends them to the editor holding their
+   * answers rather than pretending nothing happened.
    */
-  private async verify(): Promise<void> {
+  protected async verify(): Promise<void> {
+    this.error.set(null);
     if (!/^\d{6}$/.test(this.code())) {
       this.error.set('Enter the 6-digit code we sent you.');
       return;
@@ -457,7 +504,7 @@ export class MatrimonyRegisterPage {
         err.code === 'AUTH_OTP_INVALID'
           ? 'That code is not right. Check it and try again.'
           : err.code === 'AUTH_OTP_EXPIRED'
-            ? 'That code has expired. Go back and request a new one.'
+            ? 'That code has expired. Ask for a new one.'
             : err.message,
       );
       this.busy.set(false);
@@ -466,8 +513,13 @@ export class MatrimonyRegisterPage {
 
     try {
       await this.matrimony.saveProfile(this.profile());
-      await this.router.navigate(['/matrimony/profile/edit'], {
-        queryParams: { welcome: 1 },
+      // Straight to the matches. The server picks the opposite gender from the
+      // profile just created, so the results are already the right side.
+      await this.router.navigate(['/matrimony/search'], {
+        queryParams: {
+          ...(this.ageMin() ? { ageMin: this.ageMin() } : {}),
+          ...(this.ageMax() ? { ageMax: this.ageMax() } : {}),
+        },
       });
     } catch (e) {
       this.error.set(

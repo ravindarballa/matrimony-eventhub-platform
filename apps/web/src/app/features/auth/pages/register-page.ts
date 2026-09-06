@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormField, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
@@ -91,6 +98,23 @@ export class RegisterPage {
 
   protected readonly model = signal(emptyRegister());
   protected readonly f = form(this.model, registerSchema);
+
+  /**
+   * Preselects what the visitor already told us on the home page, bound from
+   * the query string by withComponentInputBinding. Without it, choosing a tab
+   * there and then picking the same thing again here is the form asking a
+   * question it has been answered.
+   */
+  readonly intent = input<string | undefined>(undefined);
+
+  constructor() {
+    effect(() => {
+      const wanted = this.intent();
+      if (wanted === 'CUSTOMER' || wanted === 'VENDOR_OWNER' || wanted === 'SEEKER') {
+        this.model.update((m) => (m.intent === wanted ? m : { ...m, intent: wanted }));
+      }
+    });
+  }
 
   protected readonly busy = signal(false);
   protected readonly serverError = signal<string | null>(null);

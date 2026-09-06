@@ -25,6 +25,17 @@ export default [
           import('./pages/register-page').then((m) => m.RegisterPage),
       },
       {
+        // Its own page, not a mode of the ordinary one. A member needs a
+        // profile, not just an account, and conditionally growing one form into
+        // two different signups is how forms become unreadable.
+        path: 'register/matrimony',
+        title: 'Create your matrimony profile · Matrimony EventHub',
+        loadComponent: () =>
+          import('./pages/matrimony-register-page').then(
+            (m) => m.MatrimonyRegisterPage,
+          ),
+      },
+      {
         path: 'verify',
         title: 'Verify your number · Matrimony EventHub',
         loadComponent: () =>

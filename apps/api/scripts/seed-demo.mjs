@@ -19,7 +19,14 @@
  *   npm run seed              accounts, vendors, galleries, profiles
  *   npm run seed -- --funnel  the above, plus enquiries, quotes and a booking
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -113,11 +120,15 @@ function storeBytes(prefix, bytes, ext) {
  * on several profiles. That is a demo artefact and not worth more images.
  */
 const FACES = { FEMALE: [], MALE: [] };
-for (const [gender, prefix] of [['FEMALE', 'female'], ['MALE', 'male']]) {
-  for (let i = 0; ; i++) {
-    const file = join(here, 'lib', 'faces', `${prefix}-${i}.jpg`);
-    if (!existsSync(file)) break;
-    FACES[gender].push(readFileSync(file));
+for (const [gender, folder] of [['FEMALE', 'female'], ['MALE', 'male']]) {
+  const dir = join(here, 'lib', 'faces', folder);
+  if (!existsSync(dir)) continue;
+  // Any image in the folder, whatever it is called - so replacing the set is
+  // dropping files in and re-running, with no naming scheme to observe.
+  for (const name of readdirSync(dir).sort()) {
+    const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
+    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) continue;
+    FACES[gender].push({ bytes: readFileSync(join(dir, name)), ext: ext.slice(1) });
   }
 }
 
@@ -127,7 +138,8 @@ let faceCursor = 0;
 function storeFace(gender) {
   const set = FACES[gender] ?? [];
   if (set.length === 0) return null;
-  return storeBytes('profile-photos', set[faceCursor++ % set.length], 'jpg');
+  const face = set[faceCursor++ % set.length];
+  return storeBytes('profile-photos', face.bytes, face.ext === 'jpeg' ? 'jpg' : face.ext);
 }
 
 const now = new Date();

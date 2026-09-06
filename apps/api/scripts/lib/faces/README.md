@@ -1,34 +1,48 @@
 # Seed portrait photos
 
-Sixteen passport-shaped portraits, 320×400, used by `seed-demo.mjs` so demo
-profiles have a face rather than a silhouette.
+`seed-demo.mjs` reads every image in `female/` and `male/` and cycles through
+whichever set matches a profile's gender, so a bride is never shown a man's
+photograph. Any filename works and `.jpg`, `.jpeg`, `.png` and `.webp` are all
+accepted — replacing the set is dropping files in and re-running `npm run seed`.
 
-## Where they came from
+Empty the folders and the seed falls back to drawn silhouettes. It never fails
+for want of a photograph.
 
-They are **StyleGAN output from thispersondoesnotexist.com**. Every one depicts
-a person who does not exist: there is nobody to have not consented, nobody to
-be misrepresented by the invented age and community attached to them, and
-nobody to object to being listed as looking for a husband.
+## What is in here now
 
-That is the whole reason for using generated faces here. A matrimony profile is
-a claim about a person, and a real photograph on a fabricated profile — a public
-figure's publicity still, a stranger's holiday snap — is the exact shape of the
-fraud these platforms spend their lives fighting.
+Sixteen **StyleGAN portraits from thispersondoesnotexist.com**, cropped to
+320×400. Every one depicts a person who does not exist.
 
-## Before this ships
+That is the point, not a convenience. A matrimony profile is a claim about a
+person. A real photograph on a fabricated profile attaches a real, identifiable
+person to an invented age, an invented community and a "Send interest" button
+they never agreed to — which is the exact shape of the fraud these platforms
+spend their lives fighting. Publicity stills of actors are the worst version of
+it, being both non-consensual and somebody else's copyright.
 
-The copyright position on AI-generated images is unsettled and varies by
-jurisdiction, and this source publishes no licence. That is an acceptable risk
-for a local demo and **is worth checking before it goes in front of the
-public**. If it does not survive that check, replacing them is a matter of
-dropping different files in this folder with the same names — nothing outside
-the seed reads them.
+**They are also mostly European.** The model behind that source is trained on
+FFHQ, and across sixty samples only three or four read as plausibly South Asian.
+For a Telugu matrimony product that is a poor fit, and it is the reason to
+replace them.
+
+## Replacing them with Indian portraits
+
+Anything rights-cleared works. Two routes that stay clear of the problem above:
+
+- **Synthetic faces with demographic control** — generated.photos and similar
+  let you filter by ethnicity and age, and the faces are of nobody real. Check
+  the tier: free usually requires attribution, commercial use is paid.
+- **Licensed stock** — a South Asian portrait pack from any stock library.
+  ImagesBazaar and similar specialise in Indian imagery. Model releases are what
+  you are paying for.
+
+Whichever you choose, drop the files into `female/` and `male/` and re-seed.
+
+## Before this is public
+
+The copyright position on AI-generated images is unsettled and the current
+source publishes no licence. Acceptable for a local demo, worth settling before
+it faces anyone.
 
 Real member photos never come through here. Those are uploaded through the app,
-stored by the media driver and moderated before anyone else sees them.
-
-## Naming
-
-`female-0.jpg … female-8.jpg` and `male-0.jpg … male-6.jpg`. The seed cycles
-through whichever set matches the profile's gender, so a bride never gets a
-man's photograph. They were sorted by eye; there is no classifier involved.
+stored by the media driver, and moderated before anyone else can see them.

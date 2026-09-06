@@ -116,7 +116,24 @@ import { MatrimonyApi, unwrap } from '../data/matrimony-api';
             color: inherit; text-decoration: underline; cursor: pointer;
             margin-left: 0.3rem; font-weight: 600; }
     .link:disabled { opacity: 0.6; cursor: default; }
-    @media (max-width: 720px) { .name { display: none; } }
+    /*
+     * The toolbar holds a brand, six links, an account link, the portal
+     * switcher, a bell and a sign-out button. That is more than a phone is
+     * wide, and it was pushing the whole page sideways rather than adapting -
+     * every matrimony screen scrolled horizontally on a 390px device.
+     *
+     * The links move to a row of their own and scroll within it if even that
+     * is not enough, so nothing is hidden and nothing overflows the page.
+     */
+    @media (max-width: 720px) {
+      .name { display: none; }
+      .bar { height: auto; flex-wrap: wrap; gap: 0.6rem;
+             padding-top: 0.5rem; padding-bottom: 0.4rem; }
+      .spacer { display: none; }
+      .nav { order: 3; width: 100%; min-width: 0; gap: 1rem;
+             overflow-x: auto; scrollbar-width: none; }
+      .nav::-webkit-scrollbar { display: none; }
+    }
   `,
 })
 export class MatrimonyShell {

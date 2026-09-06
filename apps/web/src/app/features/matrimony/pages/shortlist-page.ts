@@ -28,39 +28,47 @@ import type { AppError } from '../../../core/models/app-error';
       @if (entries.isLoading()) { <mat-progress-bar mode="indeterminate" /> }
       @if (message(); as m) { <p class="notice" role="status">{{ m }}</p> }
 
-      @for (entry of entries.value(); track entry.targetProfileId) {
-        <div class="row">
-          <eh-profile-card
-            [profile]="entry.profile"
-            (interested)="sendInterest($event)"
-            (shortlisted)="remove(entry.targetProfileId)"
-          />
+      <div class="tiles">
+        @for (entry of entries.value(); track entry.targetProfileId) {
+          <div class="row">
+            <eh-profile-card
+              [profile]="entry.profile"
+              (interested)="sendInterest($event)"
+              (shortlisted)="remove(entry.targetProfileId)"
+            />
 
-          <div class="note">
-            <label>
-              <span>Private note</span>
-              <textarea
-                rows="2"
-                maxlength="500"
-                [value]="entry.note ?? ''"
-                (change)="saveNote(entry.targetProfileId, $any($event.target).value)"
-                placeholder="Why this one stood out"
-              ></textarea>
-            </label>
+            <div class="note">
+              <label>
+                <span>Private note</span>
+                <textarea
+                  rows="2"
+                  maxlength="500"
+                  [value]="entry.note ?? ''"
+                  (change)="saveNote(entry.targetProfileId, $any($event.target).value)"
+                  placeholder="Why this one stood out"
+                ></textarea>
+              </label>
+            </div>
           </div>
-        </div>
-      } @empty {
-        @if (!entries.isLoading()) {
-          <section class="empty">
-            <h2>Nothing saved yet</h2>
-            <p>Save profiles while you browse and compare them here later.</p>
-          </section>
+        } @empty {
+          @if (!entries.isLoading()) {
+            <section class="empty">
+              <h2>Nothing saved yet</h2>
+              <p>Save profiles while you browse and compare them here later.</p>
+            </section>
+          }
         }
-      }
+      </div>
     </main>
   `,
   styles: `
-    .wrap { max-width: 46rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    /* Tiles, not rows. minmax keeps four across on a desktop and folds to
+       two on a tablet and one on a phone without a breakpoint for each. */
+    .tiles { display: grid; gap: 1rem;
+             grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+    .tiles .empty, .tiles .notice { grid-column: 1 / -1; }
+
+    .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1.25rem; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }

@@ -59,53 +59,61 @@ type Tab = 'received' | 'sent' | 'accepted';
       @if (interests.isLoading()) { <mat-progress-bar mode="indeterminate" /> }
       @if (message(); as m) { <p class="notice" role="status">{{ m }}</p> }
 
-      @for (interest of interests.value(); track interest.id) {
-        <div class="row">
-          <eh-profile-card [profile]="interest.counterpart" />
+      <div class="tiles">
+        @for (interest of interests.value(); track interest.id) {
+          <div class="row">
+            <eh-profile-card [profile]="interest.counterpart" />
 
-          @if (interest.message) {
-            <p class="msg">“{{ interest.message }}”</p>
-          }
+            @if (interest.message) {
+              <p class="msg">“{{ interest.message }}”</p>
+            }
 
-          <div class="actions">
-            @switch (tab()) {
-              @case ('received') {
-                <button mat-flat-button [disabled]="busy()" (click)="accept(interest)">
-                  Accept and share numbers
-                </button>
-                <button mat-button [disabled]="busy()" (click)="decline(interest)">
-                  Decline
-                </button>
-              }
-              @case ('sent') {
-                @if (interest.status === 'SENT') {
-                  <span class="state">Waiting for a reply</span>
-                  <button mat-button [disabled]="busy()" (click)="withdraw(interest)">
-                    Withdraw
+            <div class="actions">
+              @switch (tab()) {
+                @case ('received') {
+                  <button mat-flat-button [disabled]="busy()" (click)="accept(interest)">
+                    Accept and share numbers
                   </button>
-                } @else {
-                  <span class="state">{{ label(interest.status) }}</span>
+                  <button mat-button [disabled]="busy()" (click)="decline(interest)">
+                    Decline
+                  </button>
+                }
+                @case ('sent') {
+                  @if (interest.status === 'SENT') {
+                    <span class="state">Waiting for a reply</span>
+                    <button mat-button [disabled]="busy()" (click)="withdraw(interest)">
+                      Withdraw
+                    </button>
+                  } @else {
+                    <span class="state">{{ label(interest.status) }}</span>
+                  }
+                }
+                @case ('accepted') {
+                  <span class="state good">Accepted ✓</span>
+                  <a mat-flat-button routerLink="/matrimony/chat">Open conversation</a>
                 }
               }
-              @case ('accepted') {
-                <span class="state good">Accepted ✓</span>
-                <a mat-flat-button routerLink="/matrimony/chat">Open conversation</a>
-              }
-            }
+            </div>
           </div>
-        </div>
-      } @empty {
-        @if (!interests.isLoading()) {
-          <section class="empty">
-            <h2>{{ emptyTitle() }}</h2>
-            <p>{{ emptyBody() }}</p>
-          </section>
+        } @empty {
+          @if (!interests.isLoading()) {
+            <section class="empty">
+              <h2>{{ emptyTitle() }}</h2>
+              <p>{{ emptyBody() }}</p>
+            </section>
+          }
         }
-      }
+      </div>
     </main>
   `,
   styles: `
-    .wrap { max-width: 46rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    /* Tiles, not rows. minmax keeps four across on a desktop and folds to
+       two on a tablet and one on a phone without a breakpoint for each. */
+    .tiles { display: grid; gap: 1rem;
+             grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+    .tiles .empty, .tiles .notice { grid-column: 1 / -1; }
+
+    .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }

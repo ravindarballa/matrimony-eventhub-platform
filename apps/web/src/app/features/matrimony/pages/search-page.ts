@@ -202,24 +202,32 @@ import type { AppError } from '../../../core/models/app-error';
 
       @if (message(); as m) { <p class="notice" role="status">{{ m }}</p> }
 
-      @for (profile of results.value(); track profile.id) {
-        <eh-profile-card
-          [profile]="profile"
-          (interested)="sendInterest($event)"
-          (shortlisted)="toggleShortlist(profile)"
-        />
-      } @empty {
-        @if (!results.isLoading() && !results.error()) {
-          <section class="empty">
-            <h2>No profiles match</h2>
-            <p>Widen the age band, or clear a filter or two.</p>
-          </section>
+      <div class="tiles">
+        @for (profile of results.value(); track profile.id) {
+          <eh-profile-card
+            [profile]="profile"
+            (interested)="sendInterest($event)"
+            (shortlisted)="toggleShortlist(profile)"
+          />
+        } @empty {
+          @if (!results.isLoading() && !results.error()) {
+            <section class="empty">
+              <h2>No profiles match</h2>
+              <p>Widen the age band, or clear a filter or two.</p>
+            </section>
+          }
         }
-      }
+      </div>
     </main>
   `,
   styles: `
-    .wrap { max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    /* Tiles, not rows. minmax keeps four across on a desktop and folds to
+       two on a tablet and one on a phone without a breakpoint for each. */
+    .tiles { display: grid; gap: 1rem;
+             grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+    .tiles .empty, .tiles .notice { grid-column: 1 / -1; }
+
+    .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }

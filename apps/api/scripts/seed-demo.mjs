@@ -28,7 +28,7 @@ import * as argon2 from 'argon2';
 
 import { COMMUNITIES_BY_RELIGION } from '@eventhub/contracts';
 
-import { PALETTE, solidPng } from './lib/png.mjs';
+import { PALETTE, portraitPng, solidPng } from './lib/png.mjs';
 
 /**
  * Anything downstream of a business rule - enquiries, quotes, bookings - is
@@ -91,11 +91,11 @@ function resetMedia() {
 }
 
 /** Writes one generated image where the media endpoint will find it. */
-function storeImage(prefix, colour, { width = 640, height = 360 } = {}) {
+function storeImage(prefix, colour, { width = 640, height = 360, render = solidPng } = {}) {
   const key = `${prefix}/${randomBytes(16).toString('hex')}.png`;
   const path = join(mediaRoot, key);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, solidPng(width, height, colour));
+  writeFileSync(path, render(width, height, colour));
   return { key, url: `/api/v1/media/${key}` };
 }
 
@@ -397,7 +397,10 @@ async function profile({
           (() => {
             const stored = storeImage('profile-photos', photoColour, {
               width: 480,
-              height: 480,
+              height: 600,
+              // 4:5, the shape the tiles crop to, and a silhouette rather than
+              // a flat block so a tile reads as a person.
+              render: (w, h, c) => portraitPng(w, h, c, gender === 'FEMALE'),
             });
             return {
               id: randomUUID(),
@@ -454,7 +457,8 @@ await db.collection('matrimony_profiles').insertOne({
     (() => {
       const stored = storeImage('profile-photos', PALETTE.indigo, {
         width: 480,
-        height: 480,
+        height: 600,
+        render: (w, h, c) => portraitPng(w, h, c, false),
       });
       return {
         id: randomUUID(),

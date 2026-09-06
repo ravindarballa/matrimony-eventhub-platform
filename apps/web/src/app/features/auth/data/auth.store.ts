@@ -135,7 +135,14 @@ export const AuthStore = signalStore(
         } finally {
           // Clear locally even if the server call failed - the user asked to leave.
           patchState(store, { user: null, accessToken: null, status: 'idle' });
-          await router.navigateByUrl('/auth/login');
+          // Home, not the login form. Someone signing out is not asking to sign
+          // back in - if they were, they would have stayed. The login page has
+          // nothing on it but a form, while home still has vendors to browse
+          // and quotes to ask for without an account. This only covers leaving
+          // on purpose: a session that expires mid-task is caught by the route
+          // guard instead, which sends them to login holding a returnUrl so
+          // they resume where they were.
+          await router.navigateByUrl('/');
         }
       },
     };

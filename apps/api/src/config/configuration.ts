@@ -15,8 +15,11 @@ export interface AppConfig {
   /** 'memory' is correct for one task; 'redis' is required for more than one. */
   throttleStore: 'memory' | 'redis';
   media: {
+    /** Defaults to local disk: a missing MEDIA_DRIVER must never mean S3. */
+    driver: 'local' | 's3';
     /** Empty means the local driver picks its own default under the API app. */
     localRoot: string;
+    s3: { bucket: string; region: string; endpoint: string };
   };
   payments: {
     /** 'fake' runs the whole flow locally with no credentials. */
@@ -51,9 +54,19 @@ export default (): AppConfig => ({
   },
   throttleStore: process.env.THROTTLE_STORE === 'redis' ? 'redis' : 'memory',
   media: {
+    // Local disk unless explicitly told otherwise, the same way the payment
+    // gateway defaults to the fake one: a missing variable must not silently
+    // point a developer's machine at a real bucket.
+    driver: process.env.MEDIA_DRIVER === 's3' ? 's3' : 'local',
     // Where the local driver writes. Outside src/ so a rebuild never sweeps
     // uploaded files away, and gitignored so they are never committed.
     localRoot: process.env.MEDIA_LOCAL_ROOT ?? '',
+    s3: {
+      bucket: process.env.MEDIA_S3_BUCKET ?? '',
+      region: process.env.MEDIA_S3_REGION ?? process.env.AWS_REGION ?? '',
+      // Set only for S3-compatible stores such as MinIO in a test environment.
+      endpoint: process.env.MEDIA_S3_ENDPOINT ?? '',
+    },
   },
   payments: {
     // Defaults to the fake gateway: a missing PAYMENT_GATEWAY must not silently

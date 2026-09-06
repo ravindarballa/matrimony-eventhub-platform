@@ -11,13 +11,30 @@
  * through in the app, and inventing them here would produce records the real
  * code paths would never have created.
  *
- *   npm run seed
+ * Photos are generated rather than shipped: the upload path checks magic
+ * bytes and the browser has to render them, but a folder of stock photographs
+ * committed to make a demo look nice is a poor trade. Flat colour blocks are
+ * enough to prove a gallery, a cover photo and the moderation queue all work.
+ *
+ *   npm run seed              accounts, vendors, galleries, profiles
+ *   npm run seed -- --funnel  the above, plus enquiries, quotes and a booking
  */
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import mongoose from 'mongoose';
 import * as argon2 from 'argon2';
+
+import { PALETTE, solidPng } from './lib/png.mjs';
+
+/**
+ * Anything downstream of a business rule - enquiries, quotes, bookings - is
+ * opt-in. The default seed stays a starting point you walk forward from; the
+ * flag is for when you want to land on a screen that already has something on
+ * it, such as quote comparison, without playing both sides first.
+ */
+const WITH_FUNNEL = process.argv.includes('--funnel');
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +66,37 @@ console.log(`\n  Seeding ${uri}\n`);
 await mongoose.connect(uri);
 const db = mongoose.connection;
 
+/**
+ * Where LocalDiskStorage will look for these files. The rule is duplicated from
+ * the driver rather than imported, because this script talks to Mongo directly
+ * and booting Nest to resolve one path would be a heavy way to learn it.
+ */
+const mediaRoot = process.env.MEDIA_LOCAL_ROOT?.trim()
+  ? process.env.MEDIA_LOCAL_ROOT.trim()
+  : join(here, '..', 'var', 'uploads');
+
+/**
+ * Clears the image folders this script owns.
+ *
+ * The seed wipes its collections so it can be re-run; without the same
+ * treatment here every run would leave another set of files behind, referenced
+ * by nothing and growing until someone noticed the disk.
+ */
+function resetMedia() {
+  for (const prefix of ['vendor-portfolio', 'profile-photos']) {
+    rmSync(join(mediaRoot, prefix), { recursive: true, force: true });
+  }
+}
+
+/** Writes one generated image where the media endpoint will find it. */
+function storeImage(prefix, colour, { width = 640, height = 360 } = {}) {
+  const key = `${prefix}/${randomBytes(16).toString('hex')}.png`;
+  const path = join(mediaRoot, key);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, solidPng(width, height, colour));
+  return { key, url: `/api/v1/media/${key}` };
+}
+
 const now = new Date();
 const id = () => new mongoose.Types.ObjectId();
 const yearsAgo = (n) => new Date(Date.UTC(now.getUTCFullYear() - n, 4, 12));
@@ -75,6 +123,7 @@ const collections = [
 for (const name of collections) {
   await db.collection(name).deleteMany({});
 }
+resetMedia();
 
 const passwordHash = await argon2.hash(PASSWORD, ARGON_OPTS);
 
@@ -108,7 +157,7 @@ const adminId = await user('Platform Admin', '8008052727', ['ADMIN']);
 // ----------------------------------------------------------------- vendors
 
 /** A verified vendor with a catalogue, ready to be found and enquired with. */
-async function vendor({ owner, mobile, businessName, category, city, description, services, rating, reviews, responseMins }) {
+async function vendor({ owner, mobile, businessName, category, city, description, services, rating, reviews, responseMins, palette = [PALETTE.slate], gallery = [] }) {
   const ownerId = await user(owner, mobile, ['VENDOR_OWNER']);
   const vendorId = id();
 
@@ -129,6 +178,18 @@ async function vendor({ owner, mobile, businessName, category, city, description
       submittedAt: now,
     },
     isActive: true,
+    // The gallery is the thing a couple actually compares, so a seeded vendor
+    // without one shows an empty card and proves nothing about the feature.
+    portfolio: gallery.map((caption, i) => {
+      const stored = storeImage('vendor-portfolio', palette[i % palette.length]);
+      return {
+        id: randomUUID(),
+        storageKey: stored.key,
+        url: stored.url,
+        caption,
+        isCover: i === 0,
+      };
+    }),
     priceFrom: Math.min(...services.map((s) => s.basePrice)),
     rating,
     reviewCount: reviews,
@@ -156,6 +217,8 @@ async function vendor({ owner, mobile, businessName, category, city, description
 const venue = await vendor({
   owner: 'Sunrise Banquets',
   mobile: '7702252727',
+  palette: [PALETTE.saffron, PALETTE.clay, PALETTE.plum],
+  gallery: ['The main hall set for 600', 'Entrance and porch', 'Bridal suite'],
   businessName: 'Sunrise Banquets',
   category: 'VENUE',
   city: 'Hyderabad',
@@ -187,6 +250,8 @@ const venue = await vendor({
 const venue2 = await vendor({
   owner: 'Pearl Gardens',
   mobile: '9876543211',
+  palette: [PALETTE.moss, PALETTE.teal],
+  gallery: ['The lawn at dusk', 'Monsoon backup hall'],
   businessName: 'Pearl Gardens',
   category: 'VENUE',
   city: 'Hyderabad',
@@ -210,6 +275,8 @@ const venue2 = await vendor({
 const caterer = await vendor({
   owner: 'Annapurna Caterers',
   mobile: '9876543212',
+  palette: [PALETTE.rose, PALETTE.saffron],
+  gallery: ['A wedding thali', 'Live counters'],
   businessName: 'Annapurna Caterers',
   category: 'CATERING',
   city: 'Hyderabad',
@@ -241,6 +308,8 @@ const caterer = await vendor({
 const photographer = await vendor({
   owner: 'Lens & Light Studio',
   mobile: '9876543213',
+  palette: [PALETTE.indigo, PALETTE.plum, PALETTE.slate],
+  gallery: ['Candid, Hyderabad 2026', 'Mandap coverage', 'Reception portraits'],
   businessName: 'Lens & Light Studio',
   category: 'PHOTOGRAPHY',
   city: 'Hyderabad',
@@ -276,7 +345,9 @@ async function profile({
   nakshatra,
   rashi,
   marsHouse,
-  photos,
+  photoColour,
+  /** 'APPROVED' by default; one profile is left PENDING so the queue has work. */
+  photoModeration = 'APPROVED',
   managedBy = 'SELF',
   about,
 }) {
@@ -315,7 +386,23 @@ async function profile({
       rashi,
       marsHouse,
     },
-    photos: photos ?? [],
+    photos: photoColour
+      ? [
+          (() => {
+            const stored = storeImage('profile-photos', photoColour, {
+              width: 480,
+              height: 480,
+            });
+            return {
+              id: randomUUID(),
+              storageKey: stored.key,
+              url: stored.url,
+              isPrimary: true,
+              moderation: photoModeration,
+            };
+          })(),
+        ]
+      : [],
     privacy: { photos: 'MEMBERS_ONLY', showContact: 'ON_MUTUAL_INTEREST' },
     status: 'ACTIVE',
     completeness: 90,
@@ -357,7 +444,21 @@ await db.collection('matrimony_profiles').insertOne({
   },
   // Hasta / Kanya - scores well against Rohini / Vrishabha below.
   horoscope: { birthTime: '06:10', birthPlace: 'Warangal', nakshatra: 13, rashi: 6 },
-  photos: [],
+  photos: [
+    (() => {
+      const stored = storeImage('profile-photos', PALETTE.indigo, {
+        width: 480,
+        height: 480,
+      });
+      return {
+        id: randomUUID(),
+        storageKey: stored.key,
+        url: stored.url,
+        isPrimary: true,
+        moderation: 'APPROVED',
+      };
+    })(),
+  ],
   privacy: { photos: 'MEMBERS_ONLY', showContact: 'ON_MUTUAL_INTEREST' },
   status: 'ACTIVE',
   completeness: 90,
@@ -369,6 +470,7 @@ await db.collection('matrimony_profiles').insertOne({
 const anita = await profile({
   owner: 'Lakshmi Rao',
   mobile: '9876543214',
+  photoColour: PALETTE.rose,
   displayName: 'Anita',
   gender: 'FEMALE',
   age: 28,
@@ -387,6 +489,7 @@ const anita = await profile({
 const priya = await profile({
   owner: 'Priya Menon',
   mobile: '9876543215',
+  photoColour: PALETTE.teal,
   displayName: 'Priya',
   gender: 'FEMALE',
   age: 26,
@@ -404,6 +507,8 @@ const priya = await profile({
 const sneha = await profile({
   owner: 'Sneha Reddy',
   mobile: '9876543216',
+  photoColour: PALETTE.plum,
+  photoModeration: 'PENDING',
   displayName: 'Sneha',
   gender: 'FEMALE',
   age: 30,
@@ -422,6 +527,7 @@ const sneha = await profile({
 const divya = await profile({
   owner: 'Divya Sharma',
   mobile: '9876543217',
+  photoColour: PALETTE.saffron,
   displayName: 'Divya',
   gender: 'FEMALE',
   age: 27,
@@ -449,8 +555,9 @@ await db.collection('interests').insertOne({
 
 // ----------------------------------------------------------------- wedding
 
+const weddingId = id();
 await db.collection('weddings').insertOne({
-  _id: id(),
+  _id: weddingId,
   customerId,
   coupleNames: { bride: 'Anita', groom: 'Rahul' },
   primaryDate: new Date(Date.UTC(now.getUTCFullYear() + 1, 1, 14)),
@@ -460,6 +567,128 @@ await db.collection('weddings').insertOne({
   createdAt: now,
   updatedAt: now,
 });
+
+// ------------------------------------------------------------------- funnel
+
+/**
+ * Enquiries and quotes, so the screens that only make sense with traffic have
+ * some. Stops deliberately at the quote: accepting one is what creates a
+ * booking, and doing that here by hand would write a record the slot lock never
+ * agreed to. Press Accept in the app and the real path produces it.
+ */
+if (WITH_FUNNEL) {
+  const GST_BPS = 1800;
+  const day = 24 * 60 * 60 * 1000;
+  const functionDate = new Date(Date.UTC(now.getUTCFullYear() + 1, 1, 14));
+
+  /** Totals are computed the way the server computes them, not typed in. */
+  const priced = (items) => {
+    const lineItems = items.map(([description, quantity, unitPrice]) => ({
+      description,
+      quantity,
+      unitPrice,
+      lineTotal: quantity * unitPrice,
+    }));
+    const subtotal = lineItems.reduce((sum, l) => sum + l.lineTotal, 0);
+    const gstAmount = Math.round((subtotal * GST_BPS) / 10_000);
+    return { lineItems, subtotal, gstAmount, total: subtotal + gstAmount };
+  };
+
+  // One enquiry, both venues, both answered - which is the state the quote
+  // comparison screen exists for.
+  const venueEnquiryId = id();
+  const quoteFor = {};
+  for (const v of [venue, venue2]) quoteFor[v.vendorId.toString()] = id();
+
+  await db.collection('quotes').insertMany([
+    {
+      _id: quoteFor[venue.vendorId.toString()],
+      enquiryId: venueEnquiryId,
+      vendorId: venue.vendorId,
+      weddingId,
+      customerId,
+      category: 'VENUE',
+      functionDate,
+      ...priced([
+        ['Full day hall hire, 14 Feb', 1, 400_000_00],
+        ['Additional decor package', 1, 85_000_00],
+      ]),
+      advancePercent: 30,
+      validUntil: new Date(now.getTime() + 14 * day),
+      notes: 'Includes the bridal suite from 8am and parking for 200 cars.',
+      status: 'SENT',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      _id: quoteFor[venue2.vendorId.toString()],
+      enquiryId: venueEnquiryId,
+      vendorId: venue2.vendorId,
+      weddingId,
+      customerId,
+      category: 'VENUE',
+      functionDate,
+      ...priced([
+        ['Garden lawn, full day', 1, 320_000_00],
+        ['Monsoon backup hall on standby', 1, 40_000_00],
+      ]),
+      advancePercent: 25,
+      validUntil: new Date(now.getTime() + 10 * day),
+      notes: 'Lawn plus the covered hall held in reserve at no extra charge.',
+      status: 'SENT',
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]);
+
+  await db.collection('enquiries').insertMany([
+    {
+      _id: venueEnquiryId,
+      weddingId,
+      customerId,
+      category: 'VENUE',
+      functionType: 'WEDDING',
+      functionDate,
+      city: 'Hyderabad',
+      guestCount: 500,
+      budget: 500_000_00,
+      notes: 'Looking for somewhere that can seat 500 with covered parking.',
+      vendors: [venue, venue2].map((v) => ({
+        vendorId: v.vendorId,
+        businessName: v.businessName,
+        status: 'QUOTED',
+        quoteId: quoteFor[v.vendorId.toString()],
+        respondedAt: now,
+      })),
+      expiresAt: new Date(now.getTime() + day),
+      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      updatedAt: now,
+    },
+    // A second enquiry nobody has answered yet, so the list is not uniform and
+    // the vendor inbox has something waiting on it.
+    {
+      _id: id(),
+      weddingId,
+      customerId,
+      category: 'CATERING',
+      functionType: 'WEDDING',
+      functionDate,
+      city: 'Hyderabad',
+      guestCount: 500,
+      notes: 'Pure vegetarian, with a live chaat counter if possible.',
+      vendors: [
+        {
+          vendorId: caterer.vendorId,
+          businessName: caterer.businessName,
+          status: 'SENT',
+        },
+      ],
+      expiresAt: new Date(now.getTime() + day),
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]);
+}
 
 // ------------------------------------------------------------------ report
 
@@ -479,6 +708,14 @@ console.log('');
 line('Matrimony profiles', `${[anita, priya, sneha, divya].length} published brides`);
 line('Vendors', '4 verified, 6 packages');
 line('Wedding', '14 Feb next year, Hyderabad, 500 guests');
+line('Galleries', '10 vendor photos, 5 profile photos');
+line('Awaiting moderation', "1 profile photo (Sneha's)");
+if (WITH_FUNNEL) {
+  line('Enquiries', '2 - one with both venues quoting, one unanswered');
+} else {
+  console.log('');
+  console.log('  Re-run with --funnel for enquiries and quotes to compare.');
+}
 console.log('');
 
 await mongoose.disconnect();

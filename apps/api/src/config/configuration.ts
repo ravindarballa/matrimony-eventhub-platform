@@ -14,6 +14,10 @@ export interface AppConfig {
   otp: { ttlSeconds: number; maxAttempts: number };
   /** 'memory' is correct for one task; 'redis' is required for more than one. */
   throttleStore: 'memory' | 'redis';
+  media: {
+    /** Empty means the local driver picks its own default under the API app. */
+    localRoot: string;
+  };
   payments: {
     /** 'fake' runs the whole flow locally with no credentials. */
     gateway: 'fake' | 'razorpay';
@@ -46,6 +50,11 @@ export default (): AppConfig => ({
     maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS ?? 5),
   },
   throttleStore: process.env.THROTTLE_STORE === 'redis' ? 'redis' : 'memory',
+  media: {
+    // Where the local driver writes. Outside src/ so a rebuild never sweeps
+    // uploaded files away, and gitignored so they are never committed.
+    localRoot: process.env.MEDIA_LOCAL_ROOT ?? '',
+  },
   payments: {
     // Defaults to the fake gateway: a missing PAYMENT_GATEWAY must not silently
     // point a developer's machine at a real payment provider.

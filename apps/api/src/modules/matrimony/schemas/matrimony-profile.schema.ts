@@ -49,6 +49,18 @@ export class Horoscope {
 @Schema({ _id: false })
 export class Photo {
   @Prop({ required: true }) id!: string;
+  /**
+   * The storage driver's handle for the bytes.
+   *
+   * Separate from `id` on purpose: `id` travels in URLs and must stay a single
+   * safe path segment, while a key is whatever the driver wants it to be -
+   * today a prefixed path, under S3 something else again.
+   *
+   * Optional because photos predating the upload endpoint - seeded rows, and
+   * anything imported - carry only a URL. For those, the id is the best handle
+   * there is.
+   */
+  @Prop() storageKey?: string;
   @Prop({ required: true }) url!: string;
   @Prop({ default: false }) isPrimary!: boolean;
   /** Nothing is visible to another member until a moderator approves it. */

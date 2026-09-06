@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,12 +10,18 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { MAX_PHOTO_BYTES } from '@eventhub/contracts';
 import type {
   ProfileSearchQuery,
   UpsertProfileRequest,
 } from '@eventhub/contracts';
+import type { UploadedImage } from '../media/storage/file-storage.interface.js';
 
 import { CurrentUser, Roles } from '../../core/decorators.js';
 import { Throttle } from '../../core/throttle/throttle.guard.js';
@@ -77,6 +84,58 @@ export class MatrimonyController {
     return this.profiles.markEngaged(userId);
   }
 
+  // ------------------------------------------------------------------- photos
+
+  /**
+   * Uploads one profile photo.
+   *
+   * Held in memory rather than spooled to a temp file: the size cap is 5 MB and
+   * the storage driver wants a buffer anyway, so a disk round-trip would only
+   * add a file to clean up. multer enforces the cap while reading, so an
+   * oversized upload is cut off at the socket instead of being buffered whole
+   * and rejected afterwards.
+   */
+  @Post('profile/me/photos')
+  @Throttle({ limit: 20, ttlMs: 60 * 60 * 1000 })
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_PHOTO_BYTES, files: 1 } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({ summary: 'Add a photo; starts PENDING until a moderator sees it' })
+  addPhoto(
+    @UploadedFile() file: UploadedImage | undefined,
+    @CurrentUser('sub') userId: string,
+  ) {
+    // No file at all is a malformed request rather than a validation failure
+    // on a field, so it is caught here instead of in the service.
+    if (!file) throw new BadRequestException('Attach a photo to upload.');
+    return this.profiles.addPhoto(userId, file);
+  }
+
+  @Delete('profile/me/photos/:photoId')
+  @ApiOperation({ summary: 'Remove one of your photos' })
+  removePhoto(
+    @Param('photoId') photoId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.profiles.removePhoto(userId, photoId);
+  }
+
+  @Post('profile/me/photos/:photoId/primary')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Choose the photo shown on your card' })
+  setPrimaryPhoto(
+    @Param('photoId') photoId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.profiles.setPrimaryPhoto(userId, photoId);
+  }
   @Get('preferences')
   getPreferences(@CurrentUser('sub') userId: string) {
     return this.profiles.getPreferences(userId);

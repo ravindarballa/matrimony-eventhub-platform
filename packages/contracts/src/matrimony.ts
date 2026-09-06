@@ -379,3 +379,27 @@ export interface SendMessageRequest {
 
 /** Nobody needs a longer message than this to arrange a meeting. */
 export const MAX_MESSAGE_LENGTH = 2000;
+
+/**
+ * Limits on profile photos, shared so the browser refuses a file the server
+ * would only reject after uploading it.
+ *
+ * Six is a product decision rather than a technical one: past that, members
+ * stop curating and start uploading the whole album, and the moderation queue
+ * is what pays for it.
+ */
+export const MAX_PROFILE_PHOTOS = 6;
+
+/** 5 MB. Large enough for a phone photo, small enough to survive a 4G upload. */
+export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/**
+ * The formats accepted. Deliberately a short list of raster formats: SVG is
+ * excluded because it can carry script, and a profile photo is never a vector.
+ */
+export const ALLOWED_PHOTO_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+export type AllowedPhotoMimeType = (typeof ALLOWED_PHOTO_MIME_TYPES)[number];

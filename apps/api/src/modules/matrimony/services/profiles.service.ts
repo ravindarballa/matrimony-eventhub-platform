@@ -1,17 +1,22 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import {
+  ALLOWED_PHOTO_MIME_TYPES,
   Capability,
   ErrorCode,
+  MAX_PHOTO_BYTES,
+  MAX_PROFILE_PHOTOS,
   MIN_AGE_BY_GENDER,
   PhotoPrivacy,
   ProfileStatus,
@@ -27,6 +32,11 @@ import {
 } from '@eventhub/contracts';
 
 import { User, type UserDocument } from '../../auth/schemas/user.schema.js';
+import {
+  FILE_STORAGE,
+  type FileStorage,
+  type UploadedImage,
+} from '../../media/storage/file-storage.interface.js';
 import {
   MatrimonyProfile,
   type MatrimonyProfileDocument,
@@ -67,6 +77,7 @@ export class ProfilesService {
     @InjectModel(PartnerPreference.name)
     private readonly preferences: Model<PartnerPreferenceDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
+    @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     private readonly relations: RelationsService,
     private readonly entitlements: EntitlementsService,
     private readonly guna: GunaService,
@@ -246,6 +257,149 @@ export class ProfilesService {
     return profile ? this.toOwnDto(profile) : null;
   }
 
+  // ------------------------------------------------------------------- photos
+
+  /**
+   * Adds one photo to the caller's own profile.
+   *
+   * The file is checked before it is stored, and stored before the profile is
+   * touched: a rejected upload leaves nothing behind, and a failed save leaves
+   * at worst an orphaned object rather than a profile pointing at bytes that
+   * were never written.
+   *
+   * Every new photo starts PENDING regardless of who uploaded it. Nothing here
+   * lets a member publish an unreviewed photo to anyone but themselves - that
+   * decision belongs to the moderation queue alone.
+   */
+  async addPhoto(userId: string, file: UploadedImage): Promise<MatrimonyProfileDto> {
+    const profile = await this.requireOwn(userId);
+
+    if (profile.photos.length >= MAX_PROFILE_PHOTOS) {
+      throw new ConflictException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `You can have ${MAX_PROFILE_PHOTOS} photos. Remove one first.`,
+      });
+    }
+
+    this.assertUsableImage(file);
+
+    const stored = await this.storage.put({
+      prefix: 'profile-photos',
+      contentType: file.mimetype,
+      bytes: file.buffer,
+    });
+
+    profile.photos.push({
+      id: randomUUID(),
+      storageKey: stored.key,
+      url: stored.url,
+      // The first photo becomes the primary one, so a member who uploads
+      // exactly one is never left without a card image.
+      isPrimary: profile.photos.length === 0,
+      moderation: 'PENDING',
+    });
+    profile.completeness = this.completeness(profile);
+    await profile.save();
+
+    const added = profile.photos[profile.photos.length - 1]!;
+    this.events.emit('photo.uploaded', {
+      profileId: profile.id as string,
+      photoId: added.id,
+    });
+
+    return this.toOwnDto(profile);
+  }
+
+  /**
+   * Removes a photo, from the profile and from the store.
+   *
+   * The profile is saved first. If the store then fails to delete, the result
+   * is an unreferenced object nobody can reach rather than a profile showing a
+   * photo whose bytes are gone - the harmless failure of the two.
+   */
+  async removePhoto(userId: string, photoId: string): Promise<MatrimonyProfileDto> {
+    const profile = await this.requireOwn(userId);
+
+    const photo = profile.photos.find((p) => p.id === photoId);
+    if (!photo) throw new NotFoundException();
+
+    const wasPrimary = photo.isPrimary;
+    profile.photos = profile.photos.filter((p) => p.id !== photoId);
+
+    // Promote another photo rather than leaving the profile with none marked,
+    // which would show a member with photos as though they had none.
+    if (wasPrimary && profile.photos.length > 0) {
+      profile.photos[0]!.isPrimary = true;
+    }
+    profile.completeness = this.completeness(profile);
+    await profile.save();
+
+    try {
+      // Older photos have no stored key; their id is the closest thing to one.
+      await this.storage.remove(photo.storageKey ?? photo.id);
+    } catch (err) {
+      this.logger.warn(`Orphaned stored photo ${photoId}: ${String(err)}`);
+    }
+
+    return this.toOwnDto(profile);
+  }
+
+  /**
+   * Chooses which photo represents the profile in search results.
+   *
+   * Only an approved photo can be primary: the primary is what a stranger sees
+   * on a card, so allowing a pending one would route around moderation
+   * entirely.
+   */
+  async setPrimaryPhoto(
+    userId: string,
+    photoId: string,
+  ): Promise<MatrimonyProfileDto> {
+    const profile = await this.requireOwn(userId);
+
+    const photo = profile.photos.find((p) => p.id === photoId);
+    if (!photo) throw new NotFoundException();
+
+    if (photo.moderation !== 'APPROVED') {
+      throw new ConflictException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'That photo is still being reviewed.',
+      });
+    }
+
+    for (const p of profile.photos) p.isPrimary = p.id === photoId;
+    await profile.save();
+
+    return this.toOwnDto(profile);
+  }
+
+  /**
+   * Whether these bytes are an image the platform accepts.
+   *
+   * The declared content type is checked against the file's own magic bytes,
+   * because the header is supplied by the client and a caller who wants to
+   * store something else will simply claim it is a JPEG. What actually stops
+   * that is reading the first few bytes.
+   */
+  private assertUsableImage(file: UploadedImage): void {
+    const fail = (message: string): never => {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        fields: { file: message },
+      });
+    };
+
+    if (!file.buffer?.length) fail('That file is empty.');
+    if (file.size > MAX_PHOTO_BYTES) {
+      fail(`Photos must be under ${Math.floor(MAX_PHOTO_BYTES / (1024 * 1024))} MB.`);
+    }
+    if (!ALLOWED_PHOTO_MIME_TYPES.includes(file.mimetype as never)) {
+      fail('Use a JPEG, PNG or WebP image.');
+    }
+    if (sniffImageType(file.buffer) !== file.mimetype) {
+      fail('That file is not the image type it claims to be.');
+    }
+  }
   async requireOwn(userId: string): Promise<MatrimonyProfileDocument> {
     if (!Types.ObjectId.isValid(userId)) throw new NotFoundException();
     const profile = await this.profiles.findOne({
@@ -601,4 +755,39 @@ function incomeBand(annualIncome?: number): string | null {
   if (lakhs < 25) return '₹10–25 lakh';
   if (lakhs < 50) return '₹25–50 lakh';
   return '₹50 lakh+';
+}
+
+/**
+ * The real type of an image, from its leading bytes.
+ *
+ * Deliberately tiny and dependency-free: it recognises exactly the three
+ * formats the platform accepts and returns null for everything else, which is
+ * all the upload path needs in order to refuse a mislabelled file.
+ */
+function sniffImageType(bytes: Buffer): string | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  // RIFF....WEBP
+  if (
+    bytes.length >= 12 &&
+    bytes.toString('ascii', 0, 4) === 'RIFF' &&
+    bytes.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
 }

@@ -57,6 +57,41 @@ export class MatrimonyApi {
     return res.data;
   }
 
+  /**
+   * Uploads one profile photo.
+   *
+   * Sent as multipart FormData with no Content-Type set by hand: the browser
+   * has to add the multipart boundary itself, and setting the header manually
+   * omits it, which makes the request unparseable on the server.
+   */
+  async uploadPhoto(file: File): Promise<MatrimonyProfileDto> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    const res = await firstValueFrom(
+      this.http.post<Envelope<MatrimonyProfileDto>>(`${this.meUrl}/photos`, body),
+    );
+    return res.data;
+  }
+
+  async removePhoto(photoId: string): Promise<MatrimonyProfileDto> {
+    const res = await firstValueFrom(
+      this.http.delete<Envelope<MatrimonyProfileDto>>(
+        `${this.meUrl}/photos/${photoId}`,
+      ),
+    );
+    return res.data;
+  }
+
+  async setPrimaryPhoto(photoId: string): Promise<MatrimonyProfileDto> {
+    const res = await firstValueFrom(
+      this.http.post<Envelope<MatrimonyProfileDto>>(
+        `${this.meUrl}/photos/${photoId}/primary`,
+        {},
+      ),
+    );
+    return res.data;
+  }
+
   async publish(): Promise<MatrimonyProfileDto> {
     const res = await firstValueFrom(
       this.http.post<Envelope<MatrimonyProfileDto>>(`${this.meUrl}/publish`, {}),

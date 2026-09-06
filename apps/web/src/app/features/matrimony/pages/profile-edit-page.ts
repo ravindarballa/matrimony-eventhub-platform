@@ -33,6 +33,7 @@ import {
 } from '@eventhub/contracts';
 
 import { MatrimonyApi, unwrap } from '../data/matrimony-api';
+import { PhotoManager } from '../components/photo-manager';
 import type { AppError } from '../../../core/models/app-error';
 
 interface ProfileModel {
@@ -114,6 +115,7 @@ const empty = (): ProfileModel => ({
   selector: 'eh-matrimony-profile-edit-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PhotoManager,
     FormField,
     MatButtonModule,
     MatFormFieldModule,
@@ -342,6 +344,15 @@ const empty = (): ProfileModel => ({
           </select>
         </label>
 
+        <!--
+          Photos sit outside the form: they save on pick, not on submit, and the
+          server is the source of truth for the list afterwards.
+        -->
+        <eh-photo-manager
+          [profile]="existing.value()"
+          (changed)="onPhotosChanged($event)"
+        />
+
         <h2>Privacy</h2>
         <label class="native">
           <span>Who can see your photos</span>
@@ -427,6 +438,17 @@ export class MatrimonyProfileEditPage {
   protected readonly minimumAge = computed(
     () => MIN_AGE_BY_GENDER[this.model().gender],
   );
+
+  /**
+   * Takes the profile the photo endpoints returned as the new truth.
+   *
+   * Set rather than refetched: the server already answered with the whole
+   * updated profile, so another GET would only re-ask a question that was just
+   * answered - and would race the form the member may already be typing in.
+   */
+  protected onPhotosChanged(profile: MatrimonyProfileDto): void {
+    this.existing.value.set(profile);
+  }
 
   constructor() {
     // Fills the form once the existing profile arrives, and only then.

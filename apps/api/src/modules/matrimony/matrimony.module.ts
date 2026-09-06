@@ -30,6 +30,7 @@ import {
 } from './schemas/matrimony-social.schema.js';
 import { User, UserSchema } from '../auth/schemas/user.schema.js';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module.js';
+import { MediaModule } from '../media/media.module.js';
 
 /**
  * The matrimony bounded context.
@@ -53,6 +54,8 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module.js';
     ]),
     // Matrimony asks this what a member may do; it never checks for a plan itself.
     SubscriptionsModule,
+    // Profile photos are stored through the shared file storage boundary.
+    MediaModule,
   ],
   controllers: [MatrimonyController],
   providers: [

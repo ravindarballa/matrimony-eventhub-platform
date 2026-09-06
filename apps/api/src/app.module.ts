@@ -19,6 +19,7 @@ import { TransformInterceptor } from './core/interceptors/transform.interceptor.
 import { JwtAuthGuard } from './core/guards/jwt-auth.guard.js';
 import { RolesGuard } from './core/guards/roles.guard.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { MediaModule } from './modules/media/media.module.js';
 import { EventsModule } from './modules/events/events.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { HealthModule } from './modules/health/health.module.js';
@@ -52,6 +53,7 @@ import { VendorsModule } from './modules/vendors/vendors.module.js';
 
     // Feature modules. Each is a bounded context; they communicate through
     // domain events rather than by importing one another's services.
+    MediaModule,
     AuthModule,
     SubscriptionsModule,
     MatrimonyModule,

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormField, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -117,6 +117,7 @@ export class LoginPage {
   protected readonly store = inject(AuthStore);
   private readonly api = inject(AuthApi);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly model = signal(emptyLogin());
   protected readonly f = form(this.model, loginSchema);
@@ -144,6 +145,25 @@ export class LoginPage {
     this.mode.update((m) => (m === 'password' ? 'otp' : 'password'));
   }
 
+  /**
+   * Where to land after signing in.
+   *
+   * The auth guard already records where someone was heading before it turned
+   * them away - its comment says so - but nothing here ever read it back, so a
+   * visitor who searched from the home page and was asked to sign in arrived at
+   * their portal with the search discarded. Honouring returnUrl is what makes
+   * that round trip work.
+   */
+  private async afterSignIn(): Promise<void> {
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+    // Only ever a path on this app. An absolute URL here would be an open
+    // redirect, handed to us by whoever wrote the link.
+    const safe = returnUrl?.startsWith('/') && !returnUrl.startsWith('//');
+    await this.router.navigateByUrl(
+      safe ? returnUrl! : landingRouteFor(this.store.roles()),
+    );
+  }
+
   protected onSubmit(): void {
     this.serverError.set(null);
     return this.mode() === 'password' ? this.submitPassword() : void this.submitOtp();
@@ -154,7 +174,7 @@ export class LoginPage {
       const { mobile, password } = this.model();
       try {
         await this.store.loginWithPassword(mobile, password);
-        await this.router.navigateByUrl(landingRouteFor(this.store.roles()));
+        await this.afterSignIn();
       } catch (e) {
         const err = e as AppError;
         // Deliberately not field-specific: saying which half was wrong would
@@ -186,7 +206,7 @@ export class LoginPage {
       }
 
       await this.store.loginWithOtp(mobile, this.challengeId()!, this.code());
-      await this.router.navigateByUrl(landingRouteFor(this.store.roles()));
+      await this.afterSignIn();
     } catch (e) {
       const err = e as AppError;
       this.serverError.set(

@@ -57,6 +57,14 @@ export const routes: Routes = [
       import('./features/placeholder-page').then((m) => m.PlaceholderPage),
     data: { module: 'Not permitted', code: '403' },
   },
-  { path: '', redirectTo: 'auth/login', pathMatch: 'full' },
-  { path: '**', redirectTo: 'auth/login' },
+  {
+    // The front door, and public. Sending an unknown visitor to a login form
+    // asks them to commit before they have seen anything.
+    path: '',
+    pathMatch: 'full',
+    title: 'Matrimony EventHub · Matches and wedding vendors',
+    loadComponent: () =>
+      import('./features/home/pages/home-page').then((m) => m.HomePage),
+  },
+  { path: '**', redirectTo: '' },
 ];

@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -231,8 +238,51 @@ export class MatrimonySearchPage {
   protected readonly diets = Object.values(Diet);
   protected readonly maritalStatuses = Object.values(MaritalStatus);
 
+  /**
+   * Filters arriving in the URL, bound from the query string by
+   * withComponentInputBinding.
+   *
+   * This is what makes the home page's search box mean anything: someone picks
+   * an age range and a mother tongue there, signs in on the way through, and
+   * has to arrive at those results rather than at an empty search. They seed
+   * the store once, on the way in, and after that the store is in charge -
+   * otherwise editing a filter here would fight the URL that opened the page.
+   */
+  readonly ageMin = input<string | undefined>(undefined);
+  readonly ageMax = input<string | undefined>(undefined);
+  readonly religion = input<string | undefined>(undefined);
+  readonly motherTongue = input<string | undefined>(undefined);
+
+  private seeded = false;
+
   protected readonly gotraDraft = signal('');
   protected readonly message = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      if (this.seeded) return;
+
+      const age = (raw: string | undefined): number | undefined => {
+        const n = Number(raw);
+        return raw && Number.isFinite(n) && n > 0 ? n : undefined;
+      };
+
+      const incoming = {
+        ageMin: age(this.ageMin()),
+        ageMax: age(this.ageMax()),
+        religion: this.religion() || undefined,
+        motherTongue: this.motherTongue() || undefined,
+      };
+      if (Object.values(incoming).every((v) => v === undefined)) return;
+
+      this.seeded = true;
+      for (const [key, value] of Object.entries(incoming)) {
+        if (value !== undefined) {
+          this.store.setFilter(key as never, value as never);
+        }
+      }
+    });
+  }
 
   /** Reads the store, so every filter edit re-runs the request by itself. */
   protected readonly results = httpResource<ProfileCardDto[]>(

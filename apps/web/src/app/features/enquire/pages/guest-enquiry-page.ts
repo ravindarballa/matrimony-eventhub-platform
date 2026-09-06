@@ -72,7 +72,7 @@ type Step = 'pick' | 'details' | 'code';
             <span>Category</span>
             <select [value]="category()" (change)="category.set($any($event.target).value)">
               @for (c of categories; track c) {
-                <option [value]="c">{{ label(c) }}</option>
+                <option [value]="c" [selected]="c === category()">{{ label(c) }}</option>
               }
             </select>
           </label>
@@ -203,7 +203,9 @@ type Step = 'pick' | 'details' | 'code';
                 (change)="functionType.set($any($event.target).value)"
               >
                 @for (fn of functions; track fn) {
-                  <option [value]="fn">{{ label(fn) }}</option>
+                  <option [value]="fn" [selected]="fn === functionType()">
+                    {{ label(fn) }}
+                  </option>
                 }
               </select>
             </label>

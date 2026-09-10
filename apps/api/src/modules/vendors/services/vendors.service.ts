@@ -371,6 +371,26 @@ export class VendorsService {
     return snippets;
   }
 
+  /**
+   * How many bookable vendors each category has, optionally in one city.
+   *
+   * The browse page needs it to say "12 in Hyderabad" on a tile, and the point
+   * of saying so is the tiles that say "none yet". A category grid that
+   * promises supply everywhere and opens onto an empty list teaches a visitor
+   * that the whole grid is decoration.
+   */
+  async categoryCounts(city?: string): Promise<{ category: string; count: number }[]> {
+    const match: Record<string, unknown> = { isActive: true };
+    if (city) match['city'] = new RegExp(`^${escapeRegex(city)}$`, 'i');
+
+    const rows = await this.vendors.aggregate<{ _id: string; count: number }>([
+      { $match: match },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+    ]);
+
+    return rows.map((r) => ({ category: r._id, count: r.count }));
+  }
+
   /** Vendors whose calendar is HELD or BOOKED on that date. */
   private async takenVendorIds(
     vendorIds: Types.ObjectId[],

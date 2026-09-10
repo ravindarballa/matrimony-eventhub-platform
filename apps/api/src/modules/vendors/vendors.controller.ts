@@ -62,6 +62,17 @@ export class VendorsController {
     return { items, meta: { page, limit: query.limit ?? 20, total } };
   }
 
+  /**
+   * Vendor counts per category, for the browse grid. Public, and declared
+   * above `:id` so the literal segment is not read as a vendor id.
+   */
+  @Get('category-counts')
+  @Public()
+  @ApiOperation({ summary: 'How many bookable vendors each category has' })
+  categoryCounts(@Query('city') city?: string) {
+    return this.vendors.categoryCounts(city?.trim() || undefined);
+  }
+
   @Get('me')
   @Roles('VENDOR_OWNER', 'VENDOR_STAFF')
   @ApiOperation({ summary: "The caller's own vendor organisation" })

@@ -55,16 +55,36 @@ export const PhotoPrivacy = {
 } as const;
 export type PhotoPrivacy = (typeof PhotoPrivacy)[keyof typeof PhotoPrivacy];
 
+/**
+ * What a family actually books for an Indian wedding.
+ *
+ * The first nine were a generic events list - venue, catering, photography and
+ * so on - which describes a conference as well as it describes a wedding. The
+ * rest are the ones that only appear on this subcontinent's invoices: the
+ * mehendi artist, the sangeet choreographer, the pandit, the dhol and baraat
+ * horse, the bridal lehenga, the trousseau. A platform that cannot list them
+ * is a platform the wedding happens around rather than through.
+ */
 export const VendorCategory = {
   VENUE: 'VENUE',
   CATERING: 'CATERING',
   PHOTOGRAPHY: 'PHOTOGRAPHY',
   DECOR: 'DECOR',
   MAKEUP: 'MAKEUP',
+  MEHENDI: 'MEHENDI',
   MUSIC: 'MUSIC',
+  CHOREOGRAPHY: 'CHOREOGRAPHY',
+  ENTERTAINMENT: 'ENTERTAINMENT',
+  BRIDAL_WEAR: 'BRIDAL_WEAR',
+  GROOM_WEAR: 'GROOM_WEAR',
+  JEWELLERY: 'JEWELLERY',
+  CAKE: 'CAKE',
   PANDIT: 'PANDIT',
   TRANSPORT: 'TRANSPORT',
   INVITATION: 'INVITATION',
+  GIFTS: 'GIFTS',
+  PLANNER: 'PLANNER',
+  HONEYMOON: 'HONEYMOON',
 } as const;
 export type VendorCategory = (typeof VendorCategory)[keyof typeof VendorCategory];
 

@@ -1,3 +1,5 @@
+import type { VendorCategory } from './enums.js';
+
 /** Shared primitives, response envelopes and error codes. */
 
 /**
@@ -107,18 +109,40 @@ export const GSTIN_REGEX =
   /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 export const PINCODE_REGEX = /^[1-9][0-9]{5}$/;
 
-/** Platform commission in basis points, by vendor category. */
-export const COMMISSION_BPS = {
+/**
+ * Platform commission in basis points, by vendor category.
+ *
+ * Roughly inverse to the ticket size. A venue booking is several lakh and 8%
+ * of it is a large number for an introduction; a mehendi artist's whole fee is
+ * twenty thousand, and taking 8% of that would not cover the card processing.
+ * Retail categories - jewellery, bridal wear - are lowest, because the margin
+ * on goods is thinner than on a service and a jeweller would simply refuse.
+ *
+ * Typed as a full Record so that adding a category to the enum and forgetting
+ * a rate is a compile error rather than an undefined commission on a live
+ * booking. That is exactly how the first nine were caught out.
+ */
+export const COMMISSION_BPS: Record<VendorCategory, number> = {
   VENUE: 800,
   CATERING: 1000,
   PHOTOGRAPHY: 1200,
   DECOR: 1200,
   MAKEUP: 1500,
+  MEHENDI: 1500,
   MUSIC: 1200,
+  CHOREOGRAPHY: 1500,
+  ENTERTAINMENT: 1500,
+  BRIDAL_WEAR: 600,
+  GROOM_WEAR: 600,
+  JEWELLERY: 400,
+  CAKE: 1200,
   PANDIT: 800,
   TRANSPORT: 1000,
   INVITATION: 1500,
-} as const;
+  GIFTS: 1200,
+  PLANNER: 1000,
+  HONEYMOON: 700,
+};
 
 /** TDS under section 194-O, in basis points. */
 export const TDS_BPS = 100;

@@ -396,6 +396,228 @@ const photographer = await vendor({
   ],
 });
 
+// ------------------------------------------------- the rest of the categories
+
+/**
+ * Two vendors in each of the remaining categories.
+ *
+ * The category grid is the front door, and a front door where fifteen of the
+ * nineteen tiles say "none yet" tells a visitor the platform is empty even
+ * though it is not. Two is enough for a listing page to have something to sort
+ * and filter, which is the thing being demonstrated.
+ *
+ * Written out rather than generated from name fragments. Randomly assembled
+ * businesses read as randomly assembled - "Elite Royal Wedding Solutions Pvt
+ * Ltd" - and the descriptions are what the search and the cards are actually
+ * displaying, so they have to be sentences somebody might have written.
+ */
+let extraMobile = 7000000001;
+
+const MORE = [
+  ['MEHENDI', 'Henna by Ramya', 'Hyderabad',
+    'Bridal mehendi in Rajasthani and Arabic styles, twelve years in the trade. Travels to the venue with her own team.',
+    [['Bridal hands and feet', 'Full bridal design, both sides, up to six hours.', 'PER_PACKAGE', 25_000_00, null, ['Own cones', 'Aftercare oil', 'Travel within city']],
+     ['Guest mehendi counter', 'Two artists for the guests during the function.', 'PER_HOUR', 2_500_00, null, ['Two artists', 'Unlimited guests']]],
+    [PALETTE.moss, PALETTE.saffron], ['Bridal hands, 2026', 'Guest counter at a sangeet'], 41, 55],
+  ['MEHENDI', 'Sitara Mehendi Art', 'Hyderabad',
+    'Minimal and modern mehendi for brides who want something less dense, plus large guest counters for sangeet nights.',
+    [['Contemporary bridal', 'Lighter, negative-space bridal design.', 'PER_PACKAGE', 18_000_00, null, ['Own cones', 'Trial sitting']]],
+    [PALETTE.teal], ['A minimal bridal design'], 88, 23],
+
+  ['BRIDAL_WEAR', 'Kanchi Silks & Bridal', 'Hyderabad',
+    'Kanjeevaram and Banarasi bridal sarees, plus lehengas made to measure. Three fittings included, six weeks lead time.',
+    [['Made-to-measure lehenga', 'Designed with you, three fittings, six weeks.', 'PER_PACKAGE', 145_000_00, null, ['Three fittings', 'Blouse included', 'Dupatta']],
+     ['Bridal saree with blouse', 'Kanjeevaram from the Kanchipuram looms.', 'PER_PACKAGE', 65_000_00, null, ['Stitched blouse', 'Fall and pico']]],
+    [PALETTE.rose, PALETTE.plum, PALETTE.saffron], ['The bridal floor', 'Kanjeevaram in gold', 'Fitting room'], 95, 61],
+  ['BRIDAL_WEAR', 'Rent The Lehenga', 'Bengaluru',
+    'Designer lehengas on rent for a fraction of buying, for the functions you will only wear once. Dry cleaning included.',
+    [['Four-day rental', 'Pick up two days before, return two days after.', 'PER_PACKAGE', 22_000_00, null, ['Dry cleaning', 'One alteration', 'Insurance']]],
+    [PALETTE.plum, PALETTE.rose], ['The rental rail', 'Sangeet lehengas'], 34, 78],
+
+  ['GROOM_WEAR', 'Bandhgala House', 'Hyderabad',
+    'Tailored sherwanis, bandhgalas and Jodhpuri suits. Measured in store or at home, four weeks from measurement to delivery.',
+    [['Bespoke sherwani', 'Cut and stitched to measure, four weeks.', 'PER_PACKAGE', 55_000_00, null, ['Two fittings', 'Churidar', 'Stole']],
+     ['Safa and accessories', 'Turban tied on the day, with brooch and kalgi.', 'PER_PACKAGE', 8_500_00, null, ['Tied on site', 'Brooch', 'Kalgi']]],
+    [PALETTE.indigo, PALETTE.slate], ['Sherwanis on the rail', 'The fitting room'], 62, 44],
+  ['GROOM_WEAR', 'The Groom Room', 'Chennai',
+    'Suits, indo-westerns and coordinated outfits for the groomsmen, so the baraat photographs as a set rather than a crowd.',
+    [['Groom and four groomsmen', 'Coordinated outfits, one fitting each.', 'PER_PACKAGE', 92_000_00, null, ['Five outfits', 'Pocket squares', 'One fitting each']]],
+    [PALETTE.slate, PALETTE.teal], ['Coordinated groomsmen'], 120, 19],
+
+  ['JEWELLERY', 'Polki House Jewellers', 'Hyderabad',
+    'Uncut polki and kundan bridal sets, hallmarked, with a buyback in writing. Sets also available on rent for the sangeet.',
+    [['Bridal polki set', 'Necklace, earrings, maang tikka. Hallmarked.', 'PER_PACKAGE', 385_000_00, null, ['Hallmarked', 'Buyback in writing', 'Insured transit']],
+     ['Rental set for one function', 'Worn for one day, returned the next.', 'PER_PACKAGE', 28_000_00, null, ['Insured', 'Security escort']]],
+    [PALETTE.saffron, PALETTE.clay], ['A polki bridal set', 'The rental vault'], 210, 37],
+  ['JEWELLERY', 'Temple Jewels Chennai', 'Chennai',
+    'South Indian temple jewellery — haram, vanki, oddiyanam — in gold and one-gram, for brides who want the traditional set.',
+    [['Full temple set', 'Haram, necklace, vanki, jhumkas, oddiyanam.', 'PER_PACKAGE', 240_000_00, null, ['Hallmarked', 'Velvet case']]],
+    [PALETTE.saffron], ['A full temple set'], 140, 26],
+
+  ['CHOREOGRAPHY', 'Sangeet Nights Choreography', 'Hyderabad',
+    'Sangeet routines for both families, rehearsed over four to six weeks. Works with people who insist they cannot dance.',
+    [['Six-week sangeet package', 'Eight rehearsals, four routines, day-of direction.', 'PER_PACKAGE', 85_000_00, null, ['Eight rehearsals', 'Music editing', 'Day-of direction']],
+     ['Couple dance only', 'One routine for the two of you, four sittings.', 'PER_PACKAGE', 28_000_00, null, ['Four sittings', 'Music editing']]],
+    [PALETTE.plum, PALETTE.indigo], ['A sangeet in rehearsal', 'The couple routine'], 47, 33],
+  ['CHOREOGRAPHY', 'Steps by Aditi', 'Mumbai',
+    'Bollywood and semi-classical sangeet choreography, including over video call for the relatives who arrive two days before.',
+    [['Remote plus on-site', 'Video rehearsals, then three days in person.', 'PER_PACKAGE', 62_000_00, null, ['Video rehearsals', 'Three days on site']]],
+    [PALETTE.rose], ['Rehearsal over video'], 75, 21],
+
+  ['ENTERTAINMENT', 'Dhol Baaje Baraat', 'Hyderabad',
+    'Dhol players, baraat horses and a brass band, with the permissions and the sound limits already worked out.',
+    [['Baraat package', 'Four dhol players, decorated horse, two hours.', 'PER_PACKAGE', 45_000_00, null, ['Four dhol players', 'Decorated horse', 'Permissions handled']],
+     ['Dhol only', 'Two players for the entrance.', 'PER_HOUR', 6_000_00, null, ['Two players']]],
+    [PALETTE.clay, PALETTE.saffron], ['A baraat on the move', 'The dhol line'], 52, 48],
+  ['ENTERTAINMENT', 'Encore Events & Anchors', 'Bengaluru',
+    'Anchors, magicians, caricaturists and cold-pyro entrances for receptions — everything except actual fireworks.',
+    [['Anchor for the reception', 'Four hours, script written with you.', 'PER_PACKAGE', 35_000_00, null, ['Script written with you', 'Four hours']]],
+    [PALETTE.teal, PALETTE.indigo], ['A reception in progress'], 66, 29],
+
+  ['CAKE', 'Tiers of Joy', 'Hyderabad',
+    'Tiered wedding cakes and dessert tables, eggless on request, delivered and assembled at the venue.',
+    [['Three-tier wedding cake', 'Delivered and assembled on site.', 'PER_PACKAGE', 18_000_00, null, ['Eggless option', 'Delivery and setup', 'Tasting']],
+     ['Dessert table', 'Priced per guest, six varieties.', 'PER_PLATE', 320_00, 100, ['Six varieties', 'Stands provided']]],
+    [PALETTE.rose, PALETTE.moss], ['A three-tier cake', 'The dessert table'], 29, 52],
+  ['CAKE', 'Sugar & Saffron', 'Pune',
+    'Fusion dessert tables — mithai alongside patisserie — for couples whose families disagree about what pudding is.',
+    [['Fusion dessert table', 'Mithai and patisserie, priced per guest.', 'PER_PLATE', 420_00, 100, ['Mithai and patisserie', 'Setup included']]],
+    [PALETTE.saffron], ['Mithai meets patisserie'], 44, 18],
+
+  ['PLANNER', 'Shaadi Sorted', 'Hyderabad',
+    'Full wedding planning or day-of coordination. Runs the timeline so the family can attend their own wedding.',
+    [['Full planning', 'From venue hunt to the last vendor payment.', 'PER_PACKAGE', 450_000_00, null, ['Vendor sourcing', 'Budget tracking', 'On-site team of four']],
+     ['Day-of coordination', 'We take the file two weeks out and run the day.', 'PER_PACKAGE', 125_000_00, null, ['Timeline', 'Vendor wrangling', 'Team of two']]],
+    [PALETTE.indigo, PALETTE.moss, PALETTE.slate], ['A run sheet in the wild', 'Setup morning', 'The team at work'], 26, 71],
+  ['PLANNER', 'The Wedding Desk', 'Delhi NCR',
+    'Destination weddings in Rajasthan and Goa, including the logistics of moving three hundred relatives across the country.',
+    [['Destination wedding', 'Three days, guest logistics included.', 'PER_PACKAGE', 850_000_00, null, ['Guest travel desk', 'Room allocation', 'On-site team of six']]],
+    [PALETTE.clay, PALETTE.plum], ['A Rajasthan mandap', 'The guest desk'], 190, 34],
+
+  ['DECOR', 'Marigold & Mandap', 'Hyderabad',
+    'Mandap, stage and entrance decor in fresh flowers. Marigold, tuberose and orchid, sourced the morning of the function.',
+    [['Full function decor', 'Mandap, stage, entrance and aisle, fresh flowers.', 'PER_PACKAGE', 285_000_00, null, ['Fresh flowers', 'Mandap structure', 'Lighting']],
+     ['Entrance and stage only', 'For a smaller reception.', 'PER_PACKAGE', 95_000_00, null, ['Fresh flowers', 'Stage backdrop']]],
+    [PALETTE.saffron, PALETTE.moss, PALETTE.rose], ['A marigold mandap', 'Stage backdrop', 'The entrance'], 58, 67],
+  ['DECOR', 'Studio Neel Events', 'Bengaluru',
+    'Contemporary decor — pastels, dried florals and clean structures — for couples who do not want a marigold wedding.',
+    [['Contemporary decor', 'Structures, dried florals, ambient lighting.', 'PER_PACKAGE', 320_000_00, null, ['Custom structures', 'Ambient lighting']]],
+    [PALETTE.teal, PALETTE.slate], ['Pastel mandap', 'Dried floral installation'], 105, 31],
+
+  ['MAKEUP', 'Blush by Nandini', 'Hyderabad',
+    'Airbrush and HD bridal makeup with hair and draping. Trial included, and she arrives before the photographer does.',
+    [['Bridal, all functions', 'Muhurtham, reception and sangeet, plus trial.', 'PER_PACKAGE', 95_000_00, null, ['Trial sitting', 'Hair and draping', 'Touch-up kit']],
+     ['One function', 'Makeup, hair and draping for a single day.', 'PER_PACKAGE', 35_000_00, null, ['Hair and draping']]],
+    [PALETTE.rose, PALETTE.plum], ['Bridal, muhurtham morning', 'Reception look'], 22, 84],
+  ['MAKEUP', 'Glow Studio Chennai', 'Chennai',
+    'Bridal and family makeup with a team, so the bride, her mother and four cousins are all ready before the muhurtham.',
+    [['Bride plus family of six', 'One artist for the bride, two for the family.', 'PER_PACKAGE', 78_000_00, null, ['Three artists', 'Hair for all', 'Trial for bride']]],
+    [PALETTE.saffron, PALETTE.rose], ['The family getting ready'], 51, 39],
+
+  ['MUSIC', 'Bassline DJs', 'Hyderabad',
+    'DJs with their own line array and lighting rig, plus a shehnai player for the morning if you want both.',
+    [['Sangeet and reception', 'Two nights, sound and lighting included.', 'PER_PACKAGE', 165_000_00, null, ['Line array', 'Lighting rig', 'Two nights']],
+     ['One night', 'DJ, sound and basic lighting.', 'PER_PACKAGE', 75_000_00, null, ['Sound system', 'Basic lighting']]],
+    [PALETTE.indigo, PALETTE.plum], ['The rig at a sangeet', 'Reception lighting'], 39, 58],
+  ['MUSIC', 'Raga Live Ensemble', 'Chennai',
+    'Live Carnatic and light music for the muhurtham and the reception — nadaswaram, violin, mridangam and vocals.',
+    [['Muhurtham ensemble', 'Nadaswaram and thavil for the ceremony.', 'PER_PACKAGE', 55_000_00, null, ['Four musicians', 'Own instruments']]],
+    [PALETTE.saffron, PALETTE.clay], ['The ensemble at a muhurtham'], 82, 27],
+
+  ['PANDIT', 'Vedic Rituals Hyderabad', 'Hyderabad',
+    'Pandits for Telugu, Tamil and North Indian ceremonies, with the samagri arranged and each step explained in English.',
+    [['Wedding ceremony', 'Full muhurtham with samagri arranged.', 'PER_PACKAGE', 32_000_00, null, ['Samagri arranged', 'Explained in English', 'Two assistants']],
+     ['Engagement or housewarming', 'Shorter ceremony, one pandit.', 'PER_PACKAGE', 11_000_00, null, ['Samagri arranged']]],
+    [PALETTE.saffron], ['A muhurtham in progress'], 36, 92],
+  ['PANDIT', 'Shastri Ji Delhi', 'Delhi NCR',
+    'North Indian pheras and havan, in Hindi or English, for families who want the meaning of each step said out loud.',
+    [['Pheras and havan', 'Full ceremony, samagri included.', 'PER_PACKAGE', 28_000_00, null, ['Samagri included', 'Hindi or English']]],
+    [PALETTE.clay], ['The havan set up'], 70, 45],
+
+  ['TRANSPORT', 'Baraat Wheels', 'Hyderabad',
+    'Vintage cars for the couple and air-conditioned coaches for the guests, with drivers who know the venue routes.',
+    [['Guest coaches', 'Two 40-seat coaches for the day.', 'PER_DAY', 42_000_00, null, ['Two coaches', 'Drivers', 'Fuel included']],
+     ['Vintage car for the couple', 'Decorated, for the vidaai.', 'PER_DAY', 25_000_00, null, ['Decoration', 'Chauffeur']]],
+    [PALETTE.slate, PALETTE.moss], ['The vintage car', 'Guest coaches'], 60, 41],
+  ['TRANSPORT', 'City Fleet Bengaluru', 'Bengaluru',
+    'Airport pickups and inter-venue shuttles run on a timetable, with a coordinator watching who has actually arrived.',
+    [['Airport and shuttle', 'Pickups and shuttles across three days.', 'PER_PACKAGE', 95_000_00, null, ['Coordinator', 'Live tracking', 'Three days']]],
+    [PALETTE.teal], ['The shuttle desk'], 48, 22],
+
+  ['INVITATION', 'Letterpress & Co', 'Hyderabad',
+    'Letterpress and foil wedding cards, boxed invitations with mithai, and matching digital save-the-dates.',
+    [['Printed cards, 300', 'Letterpress with foil, envelopes included.', 'PER_PACKAGE', 68_000_00, null, ['300 cards', 'Envelopes', 'Digital version']],
+     ['Boxed invitations, 50', 'Box with card, mithai and a candle.', 'PER_PACKAGE', 55_000_00, null, ['50 boxes', 'Mithai included']]],
+    [PALETTE.clay, PALETTE.saffron], ['Letterpress in gold', 'A boxed invitation'], 130, 36],
+  ['INVITATION', 'Pixel Invites', 'Mumbai',
+    'Animated digital invitations and a wedding website with RSVP tracking, for weddings where half the guests are abroad.',
+    [['Digital suite', 'Animated invite, website and RSVP tracking.', 'PER_PACKAGE', 24_000_00, null, ['Animated invite', 'Wedding website', 'RSVP tracking']]],
+    [PALETTE.indigo], ['An animated invite'], 18, 64],
+
+  ['GIFTS', 'The Trousseau Trunk', 'Hyderabad',
+    'Trousseau packing, return gifts and welcome hampers for out-of-town guests, delivered to the hotel before they land.',
+    [['Return gifts, 200', 'Curated hampers, wrapped and labelled.', 'PER_PLATE', 850_00, 100, ['Wrapped and labelled', 'Delivered to venue']],
+     ['Trousseau packing', 'Everything packed and presented for the vidaai.', 'PER_PACKAGE', 45_000_00, null, ['Packing', 'Presentation trays']]],
+    [PALETTE.rose, PALETTE.saffron], ['Wrapped return gifts', 'Trousseau trays'], 72, 30],
+  ['GIFTS', 'Hamper House Pune', 'Pune',
+    'Welcome hampers and favours sourced from small Indian makers, with a card explaining where each thing came from.',
+    [['Welcome hampers, 80', 'For guests staying at the hotel.', 'PER_PLATE', 1_200_00, 50, ['Delivered to rooms', 'Provenance card']]],
+    [PALETTE.moss], ['A welcome hamper'], 90, 17],
+
+  ['HONEYMOON', 'Two Tickets Travel', 'Hyderabad',
+    'Honeymoon packages and visas, booked around the wedding date so nobody is filing paperwork during the sangeet.',
+    [['Maldives, seven nights', 'Flights, resort and transfers for two.', 'PER_PACKAGE', 385_000_00, null, ['Flights', 'Overwater villa', 'Transfers']],
+     ['Europe, twelve nights', 'Three cities, rail between, visas handled.', 'PER_PACKAGE', 520_000_00, null, ['Visas handled', 'Rail passes', 'Hotels']]],
+    [PALETTE.teal, PALETTE.indigo], ['An overwater villa', 'A European itinerary'], 240, 25],
+  ['HONEYMOON', 'Himalaya Honeymoons', 'Delhi NCR',
+    'Quieter honeymoons — Spiti, Bhutan and Ladakh — for couples who would rather walk than lie on a beach.',
+    [['Bhutan, nine nights', 'Guided, with permits and the daily fee included.', 'PER_PACKAGE', 295_000_00, null, ['Permits', 'Guide', 'All meals']]],
+    [PALETTE.slate, PALETTE.moss], ['A Bhutan valley'], 300, 14],
+
+  ['VENUE', 'Falaknuma Terrace', 'Hyderabad',
+    'A heritage terrace above the old city for 250 guests, with the skyline behind the mandap and valet parking below.',
+    [['Evening hire', 'The terrace from 5pm to midnight.', 'PER_DAY', 550_000_00, 250, ['Valet parking', 'Heritage lighting', 'Bridal room']]],
+    [PALETTE.clay, PALETTE.saffron, PALETTE.plum], ['The terrace at dusk', 'Skyline behind the mandap', 'The approach'], 88, 42],
+  ['CATERING', 'Hyderabadi Dawat', 'Hyderabad',
+    'Non-vegetarian Hyderabadi catering — dum biryani cooked on site, haleem in season, and a separate vegetarian kitchen.',
+    [['Dawat menu', 'Fifteen items, biryani cooked on site.', 'PER_PLATE', 1_150_00, 150, ['Biryani on site', 'Separate veg kitchen', 'Service staff']]],
+    [PALETTE.clay, PALETTE.saffron], ['Dum biryani, lid on', 'The service line'], 33, 76],
+  ['PHOTOGRAPHY', 'Frame & Fable', 'Bengaluru',
+    'Documentary wedding photography — no posed group shots unless you ask — plus a printed album rather than a pen drive.',
+    [['Two-day coverage', 'Both days, 400 images, printed album.', 'PER_PACKAGE', 185_000_00, null, ['Two photographers', 'Printed album', 'Online gallery']]],
+    [PALETTE.slate, PALETTE.indigo], ['Documentary, Bengaluru', 'The album'], 27, 53],
+];
+
+for (const [category, businessName, city, description, svc, palette, gallery, responseMins, done] of MORE) {
+  await vendor({
+    owner: businessName,
+    mobile: String(extraMobile++),
+    businessName,
+    category,
+    city,
+    description,
+    palette,
+    gallery,
+    responseMins,
+    reviews: done,
+    // The fifth column means minimumUnits on a per-plate package and capacity
+    // on everything else. A dessert table priced per head has a minimum order,
+    // not a number of seats, and calling it capacity would put "seats 100" on
+    // a card next to a wedding of four hundred.
+    services: svc.map(([title, sdesc, pricingModel, basePrice, units, inclusions]) => ({
+      title,
+      description: sdesc,
+      pricingModel,
+      basePrice,
+      ...(units && pricingModel === 'PER_PLATE' ? { minimumUnits: units } : {}),
+      ...(units && pricingModel !== 'PER_PLATE' ? { capacity: units } : {}),
+      inclusions,
+    })),
+  });
+}
+
+console.log(`  ${MORE.length} more vendors across ${new Set(MORE.map((m) => m[0])).size} categories.`);
+
 // ----------------------------------------------------------------- reviews
 
 /**
@@ -1236,7 +1458,12 @@ line('Vendor (catering)', `${caterer.mobile}   → /vendor`);
 line('Vendor (photography)', `${photographer.mobile}   → /vendor`);
 line('Admin', '8008052727   → KYC queue, ledger');
 console.log('');
-line('Vendors', '4 verified, 6 packages');
+// Counted, not described: this line said '4 verified, 6 packages' long
+// after it stopped being true.
+const vendorCount = await db.collection('vendors').countDocuments({});
+const packageCount = await db.collection('vendor_services').countDocuments({});
+const catCount = (await db.collection('vendors').distinct('category')).length;
+line('Vendors', `${vendorCount} verified across ${catCount} categories, ${packageCount} packages`);
 // Read back rather than counted in a variable, so a vendor seeded without
 // reviews shows up here as the gap it is.
 const rated = await db.collection('vendors').find({ reviewCount: { $gt: 0 } }).toArray();
@@ -1259,7 +1486,9 @@ const brides = profileDocs.filter((d) => d.gender === 'FEMALE').length;
 
 line('Matrimony profiles', `${profileDocs.length} - ${brides} brides, ${profileDocs.length - brides} grooms`);
 line('Communities covered', String(new Set(profileDocs.map((d) => d.community)).size));
-line('Galleries', `10 vendor photos, ${photoCount} profile photos`);
+const vendorPhotos = (await db.collection('vendors').find({}).toArray())
+  .reduce((sum, v) => sum + (v.portfolio?.length ?? 0), 0);
+line('Galleries', `${vendorPhotos} vendor photos, ${photoCount} profile photos`);
 line('Portraits', `${FACES.FEMALE.length} female, ${FACES.MALE.length} male (generated)`);
 line('Awaiting moderation', `${pendingCount} profile photos`);
 if (WITH_FUNNEL) {

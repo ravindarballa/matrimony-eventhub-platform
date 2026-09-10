@@ -38,6 +38,35 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadChildren: () => import('./features/admin/admin.routes'),
   },
+  /**
+   * The public marketplace. No guard of any kind: browsing the supply is how a
+   * visitor decides whether the platform is worth an account at all, and
+   * nothing here exposes anything a vendor has not chosen to publish.
+   *
+   * Category before id in the vendor URL - /vendors/photography/abc123 - so the
+   * link says what it leads to when it is pasted into a family chat, and so the
+   * page can name the category before the vendor has loaded.
+   */
+  {
+    path: 'vendors',
+    title: 'Wedding vendors · Matrimony EventHub',
+    loadComponent: () =>
+      import('./features/browse/pages/categories-page').then((m) => m.CategoriesPage),
+  },
+  {
+    path: 'vendors/:category',
+    loadComponent: () =>
+      import('./features/browse/pages/category-listing-page').then(
+        (m) => m.CategoryListingPage,
+      ),
+  },
+  {
+    path: 'vendors/:category/:id',
+    loadComponent: () =>
+      import('./features/browse/pages/vendor-detail-page').then(
+        (m) => m.VendorDetailPage,
+      ),
+  },
   {
     // Public by design: this is the only route a visitor with no account can
     // do something real on, so it carries no authGuard. guestOnlyGuard sends

@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import type {
   BookingDto,
   CreateEnquiryRequest,
+  CreateReviewRequest,
   CreateWeddingRequest,
   EnquiryDto,
   PaymentDto,
@@ -12,6 +13,7 @@ import type {
   PaymentScheduleEntry,
   QuoteDto,
   RefundPreview,
+  ReviewDto,
   VendorSearchQuery,
   VendorSearchResult,
   WeddingDto,
@@ -48,6 +50,21 @@ export class CustomerApi {
     `${this.payments}/booking/${bookingId}/schedule`;
   paymentsForBookingUrl = (bookingId: string): string =>
     `${this.payments}/booking/${bookingId}`;
+
+  /** The caller's own review of a booking, if they have written one. */
+  myReviewUrl = (bookingId: string): string =>
+    `${this.vendors}/reviews/booking/${bookingId}`;
+
+  /**
+   * Writes a review. The booking is the credential: the server checks it is
+   * the caller's and that it finished, so nothing here needs to.
+   */
+  async createReview(dto: CreateReviewRequest): Promise<ReviewDto> {
+    const res = await firstValueFrom(
+      this.http.post<Envelope<ReviewDto>>(`${this.vendors}/reviews`, dto),
+    );
+    return res.data;
+  }
 
   /**
    * Opens a checkout.

@@ -44,6 +44,19 @@ export class GuestApi {
   }
 
   /**
+   * Reviews are public for the same reason search is: they are the reason to
+   * believe a listing, and putting them behind a sign-up would ask a visitor
+   * to trust the platform before it has given them anything to trust.
+   */
+  reviewsUrl(vendorId: string): string {
+    return `${this.vendors}/${vendorId}/reviews`;
+  }
+
+  reviewSummaryUrl(vendorId: string): string {
+    return `${this.vendors}/${vendorId}/reviews/summary`;
+  }
+
+  /**
    * Creates the account, the wedding and the enquiry in one request, and
    * returns a session with them.
    */

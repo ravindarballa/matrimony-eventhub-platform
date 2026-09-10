@@ -4,6 +4,10 @@ import { MediaModule } from '../media/media.module.js';
 
 import { VendorsController } from './vendors.controller.js';
 import { VendorsService } from './services/vendors.service.js';
+import { ReviewsService } from './services/reviews.service.js';
+import { Review, ReviewSchema } from './schemas/review.schema.js';
+import { Booking, BookingSchema } from '../events/schemas/booking.schema.js';
+import { User, UserSchema } from '../auth/schemas/user.schema.js';
 import { Vendor, VendorSchema } from './schemas/vendor.schema.js';
 import {
   VendorService as VendorServiceEntity,
@@ -30,10 +34,17 @@ import {
       { name: Vendor.name, schema: VendorSchema },
       { name: VendorServiceEntity.name, schema: VendorServiceSchema },
       { name: VendorAvailability.name, schema: VendorAvailabilitySchema },
+      { name: Review.name, schema: ReviewSchema },
+      // Both read-only, for reviews: a review is written against a booking and
+      // signed with the reviewer's name. Importing EventsModule to reach the
+      // first would make the two modules mutually dependent, and AuthModule is
+      // global infrastructure that has no business knowing about reviews.
+      { name: Booking.name, schema: BookingSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [VendorsController],
-  providers: [VendorsService],
-  exports: [VendorsService],
+  providers: [VendorsService, ReviewsService],
+  exports: [VendorsService, ReviewsService],
 })
 export class VendorsModule {}

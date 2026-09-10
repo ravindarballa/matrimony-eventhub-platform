@@ -24,6 +24,7 @@ import type {
 import { CurrentUser, Public, Roles } from '../../core/decorators.js';
 import type { UploadedImage } from '../media/storage/file-storage.interface.js';
 import { VendorsService } from './services/vendors.service.js';
+import { ReviewsService } from './services/reviews.service.js';
 import {
   BlockDatesDto,
   CalendarRangeDto,
@@ -33,11 +34,15 @@ import {
   UpsertServiceDto,
   VendorSearchDto,
 } from './dto/vendors.dto.js';
+import { CreateReviewDto, VendorReplyDto } from './dto/reviews.dto.js';
 
 @ApiTags('vendors')
 @Controller('vendors')
 export class VendorsController {
-  constructor(private readonly vendors: VendorsService) {}
+  constructor(
+    private readonly vendors: VendorsService,
+    private readonly reviews: ReviewsService,
+  ) {}
 
   /**
    * Search is public: browsing the supply is how a customer decides whether the
@@ -191,6 +196,76 @@ export class VendorsController {
   @ApiOperation({ summary: 'Verify or reject a vendor, with a reason' })
   decideKyc(@Param('id') id: string, @Body() dto: KycDecisionDto) {
     return this.vendors.decideKyc(id, dto);
+  }
+
+  // ---------------------------------------------------------------- reviews
+
+  /**
+   * A vendor's reviews. Public, because they are the reason to trust a
+   * listing and hiding them behind a login would defeat the purpose.
+   */
+  @Get(':id/reviews')
+  @Public()
+  @ApiOperation({ summary: 'Reviews for a vendor, newest first' })
+  listReviews(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+  ) {
+    return this.reviews.listForVendor(id, Math.max(1, Number(page) || 1));
+  }
+
+  @Get(':id/reviews/summary')
+  @Public()
+  @ApiOperation({ summary: 'Average, histogram and per-aspect scores' })
+  reviewSummary(@Param('id') id: string) {
+    return this.reviews.summaryFor(id);
+  }
+
+  /**
+   * Writes a review.
+   *
+   * It hangs off the vendors controller rather than bookings because a review
+   * is read as part of a vendor and only ever written once per booking; the
+   * booking is the credential, not the subject.
+   */
+  @Post('reviews')
+  @Roles('CUSTOMER')
+  @ApiOperation({ summary: 'Review a vendor for a completed booking' })
+  writeReview(
+    @Body() dto: CreateReviewDto,
+    @CurrentUser('sub') customerId: string,
+  ) {
+    return this.reviews.create(customerId, dto);
+  }
+
+  /**
+   * The caller's own review of a booking, or null if they have not written one.
+   * Scoped to the caller, so it cannot be used to read anyone else's.
+   */
+  @Get('reviews/booking/:bookingId')
+  @Roles('CUSTOMER')
+  @ApiOperation({ summary: "The caller's review of one booking, if any" })
+  myReviewFor(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser('sub') customerId: string,
+  ) {
+    return this.reviews.forBooking(customerId, bookingId);
+  }
+
+  /**
+   * Answers a review. One reply per review, and the vendor cannot delete the
+   * review itself - a right of reply is not a right of veto.
+   */
+  @Post('reviews/:reviewId/reply')
+  @HttpCode(HttpStatus.OK)
+  @Roles('VENDOR_OWNER')
+  @ApiOperation({ summary: 'Reply publicly to a review' })
+  replyToReview(
+    @Param('reviewId') reviewId: string,
+    @Body() dto: VendorReplyDto,
+    @CurrentUser('sub') ownerId: string,
+  ) {
+    return this.reviews.reply(ownerId, reviewId, dto.body);
   }
 
   @Get(':id/services')

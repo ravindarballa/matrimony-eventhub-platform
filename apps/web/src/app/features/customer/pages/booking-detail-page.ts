@@ -14,6 +14,7 @@ import {
   type BookingDto,
   type PaymentScheduleEntry,
   type RefundPreview,
+  type ReviewDto,
 } from '@eventhub/contracts';
 
 import { CustomerApi, unwrap } from '../data/customer-api';
@@ -25,6 +26,7 @@ import {
   formatEventDate,
 } from '../data/booking-display';
 import { StatusChip } from '../components/status-chip';
+import { ReviewForm } from '../components/review-form';
 import type { AppError } from '../../../core/models/app-error';
 
 /**
@@ -40,7 +42,7 @@ import type { AppError } from '../../../core/models/app-error';
 @Component({
   selector: 'eh-booking-detail-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, StatusChip, MatButtonModule, MatProgressBarModule],
+  imports: [RouterLink, StatusChip, MatButtonModule, MatProgressBarModule, ReviewForm],
   template: `
     <main class="wrap">
       <a class="back" routerLink="/customer/bookings">&larr; All bookings</a>
@@ -190,6 +192,20 @@ import type { AppError } from '../../../core/models/app-error';
           </section>
         }
 
+        <!--
+          The review lives at the bottom of the booking, which is where a couple
+          arrives when the wedding is behind them and they are looking at what
+          it cost. Asked anywhere else it is an interruption; asked here it is
+          the last thing left to do with this booking.
+        -->
+        @if (reviewable(b)) {
+          <eh-review-form
+            [bookingId]="b.id"
+            [existing]="myReview.value() ?? null"
+            (published)="myReview.reload()"
+          />
+        }
+
         @if (error(); as e) {
           <p class="err" role="alert">{{ e }}</p>
         }
@@ -266,6 +282,20 @@ export class BookingDetailPage {
     () => this.api.scheduleUrl(this.id()),
     { parse: unwrap<PaymentScheduleEntry[]>, defaultValue: [] },
   );
+
+  /**
+   * The caller's own review of this booking, or null. Fetched rather than
+   * inferred, so reloading the page after writing one shows what was written
+   * instead of offering the form again and failing on submit.
+   */
+  protected readonly myReview = httpResource<ReviewDto | null>(
+    () => this.api.myReviewUrl(this.id()),
+    { parse: unwrap<ReviewDto | null>, defaultValue: null },
+  );
+
+  /** A review is only a fair thing to ask for once the work is done. */
+  protected readonly reviewable = (b: BookingDto): boolean =>
+    b.status === 'COMPLETED' || b.status === 'DISPUTED';
 
   protected readonly refund = signal<RefundPreview | null>(null);
   protected readonly reason = signal('');

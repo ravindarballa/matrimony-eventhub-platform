@@ -5,6 +5,7 @@ import type {
   CreateQuoteRequest,
   OnboardVendorRequest,
   QuoteDto,
+  ReviewDto,
   SubmitKycRequest,
   UpsertServiceRequest,
   VendorDto,
@@ -30,6 +31,25 @@ export class VendorApi {
   readonly inboxUrl = `${this.enquiries}/inbox`;
 
   servicesUrl = (vendorId: string): string => `${this.base}/${vendorId}/services`;
+  reviewsUrl = (vendorId: string): string => `${this.base}/${vendorId}/reviews`;
+  reviewSummaryUrl = (vendorId: string): string =>
+    `${this.base}/${vendorId}/reviews/summary`;
+
+  /**
+   * Answers a review, once, in public.
+   *
+   * There is deliberately no counterpart that removes one. A vendor gets the
+   * last word and never the delete key, which is the only arrangement under
+   * which the ratings on the search page are worth anything.
+   */
+  async replyToReview(reviewId: string, body: string): Promise<ReviewDto> {
+    const res = await firstValueFrom(
+      this.http.post<Envelope<ReviewDto>>(`${this.base}/reviews/${reviewId}/reply`, {
+        body,
+      }),
+    );
+    return res.data;
+  }
 
   async onboard(dto: OnboardVendorRequest): Promise<VendorDto> {
     const res = await firstValueFrom(

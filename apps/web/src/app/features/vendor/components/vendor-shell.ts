@@ -41,6 +41,7 @@ import { VendorApi, unwrap } from '../data/vendor-api';
         <a routerLink="/vendor/enquiries" routerLinkActive="on">Enquiries</a>
         <a routerLink="/vendor/calendar" routerLinkActive="on">Calendar</a>
         <a routerLink="/vendor/services" routerLinkActive="on">Catalogue</a>
+        <a routerLink="/vendor/reviews" routerLinkActive="on">Reviews</a>
         <a routerLink="/vendor/onboarding" routerLinkActive="on">Business</a>
       </nav>
 

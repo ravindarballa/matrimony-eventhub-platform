@@ -87,11 +87,27 @@ interface PricedPackage {
         </h3>
 
         <p class="meta">
-          <span class="rating" [title]="vendor().reviewCount + ' reviews'">
+          <!--
+            The rating opens the reviews rather than merely stating them. It is
+            the number a family least takes on faith, and until now it was the
+            one thing on the card with nothing behind it.
+          -->
+          <button
+            type="button"
+            class="rating"
+            [attr.aria-label]="'Read the ' + vendor().reviewCount + ' reviews'"
+            (click)="reviewsRequested.emit()"
+          >
             <span class="stars" aria-hidden="true">★</span>
             <strong>{{ vendor().rating || '—' }}</strong>
-            <span class="count">({{ vendor().reviewCount }})</span>
-          </span>
+            <span class="count">
+              @if (vendor().reviewCount) {
+                ({{ vendor().reviewCount }} reviews)
+              } @else {
+                (no reviews yet)
+              }
+            </span>
+          </button>
           · {{ vendor().city }}
         </p>
 
@@ -193,6 +209,10 @@ interface PricedPackage {
     .verified { color: #1b5e20; }
     .meta { margin: 0; font-size: 0.78rem; color: rgb(0 0 0 / 0.6); }
     .stars { color: #e8a33d; }
+    .rating { font: inherit; color: inherit; background: none; border: 0; padding: 0;
+              cursor: pointer; text-decoration: underline; text-decoration-color:
+              rgb(0 0 0 / 0.25); text-underline-offset: 2px; }
+    .rating:hover { text-decoration-color: rgb(0 0 0 / 0.6); }
     .rating strong { color: rgb(0 0 0 / 0.8); }
     .count { color: rgb(0 0 0 / 0.45); }
 
@@ -242,6 +262,7 @@ export class VendorCard {
   readonly disabled = input(false);
 
   readonly toggled = output<void>();
+  readonly reviewsRequested = output<void>();
 
   protected readonly open = signal(false);
   protected readonly preview = signal<string | null>(null);

@@ -7,9 +7,14 @@
  * seed should be re-runnable without a running server.
  *
  * What it deliberately does NOT seed is anything downstream of a business rule
- * - no bookings, no payments, no ledger entries. Those are what you walk
- * through in the app, and inventing them here would produce records the real
- * code paths would never have created.
+ * - no payments, no ledger entries, and no enquiry or quote without --funnel.
+ * Those are what you walk through in the app, and inventing them here would
+ * produce records the real code paths would never have created.
+ *
+ * Completed bookings are the one exception, and only because a review cannot
+ * exist without one. Reviews are read on the public search page by visitors who
+ * will never have a booking of their own, so a dataset with none leaves the
+ * ratings meaning exactly as little as they did before there were reviews.
  *
  * Photos are generated rather than shipped: the upload path checks magic
  * bytes and the browser has to render them, but a folder of stock photographs
@@ -174,6 +179,7 @@ const collections = [
   'enquiries',
   'quotes',
   'bookings',
+  'vendor_reviews',
   'payments',
   'ledger_entries',
   'webhook_events',
@@ -249,8 +255,11 @@ async function vendor({ owner, mobile, businessName, category, city, description
       };
     }),
     priceFrom: Math.min(...services.map((s) => s.basePrice)),
-    rating,
-    reviewCount: reviews,
+    // Both derived: seedReviews() recomputes them from the reviews it
+    // writes, the same way the service does. A rating set here by hand would
+    // be exactly the frozen number this feature exists to get rid of.
+    rating: 0,
+    reviewCount: 0,
     completedBookings: reviews,
     medianResponseMins: responseMins,
     recentResponseMins: [responseMins],
@@ -386,6 +395,268 @@ const photographer = await vendor({
     },
   ],
 });
+
+// ----------------------------------------------------------------- reviews
+
+/**
+ * Reviews, and the ratings that come out of them.
+ *
+ * Every one is written against a completed booking, because that is the only
+ * way the app itself will accept one - a seed that inserted bare review
+ * documents would be testing a path no customer can walk. The vendor's rating
+ * and review count are then recomputed from what was written, exactly as
+ * ReviewsService.recomputeRating does, so the numbers on a search card are the
+ * arithmetic of the reviews underneath it rather than a decision made here.
+ */
+let reviewerMobile = 6000000001;
+
+async function seedReviews(vendorTarget, category, entries) {
+  const reviewDocs = [];
+
+  for (const entry of entries) {
+    const reviewerId = await user(entry.author, String(reviewerMobile++), ['CUSTOMER']);
+    const bookingId = id();
+    const eventDate = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - entry.monthsAgo, 14),
+    );
+
+    await db.collection('bookings').insertOne({
+      _id: bookingId,
+      weddingId: id(),
+      customerId: reviewerId,
+      vendorId: vendorTarget.vendorId,
+      quoteId: id(),
+      category,
+      status: 'COMPLETED',
+      eventDate,
+      totalAmount: entry.paid,
+      paidAmount: entry.paid,
+      advanceAmount: Math.round(entry.paid * 0.25),
+      commissionBps: 1000,
+      cancellationTiers: [],
+      statusHistory: [],
+      createdAt: eventDate,
+      updatedAt: eventDate,
+    });
+
+    // The mean of the four, one decimal - the same rule as overallRating().
+    const s = entry.scores;
+    const values = [s.quality, s.professionalism, s.value, s.flexibility];
+    const rating = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
+
+    // First name, last initial: how the service publishes a reviewer.
+    const parts = entry.author.trim().split(/\s+/);
+    const authorName =
+      parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0];
+
+    reviewDocs.push({
+      _id: id(),
+      vendorId: vendorTarget.vendorId,
+      bookingId,
+      customerId: reviewerId,
+      authorName,
+      rating,
+      scores: s,
+      title: entry.title,
+      body: entry.body,
+      category,
+      eventDate,
+      amountPaid: entry.paid,
+      ...(entry.reply
+        ? {
+            vendorReply: {
+              body: entry.reply,
+              repliedAt: new Date(eventDate.getTime() + 3 * 24 * 60 * 60 * 1000),
+            },
+          }
+        : {}),
+      createdAt: new Date(eventDate.getTime() + 7 * 24 * 60 * 60 * 1000),
+      updatedAt: now,
+    });
+  }
+
+  await db.collection('vendor_reviews').insertMany(reviewDocs);
+
+  const average =
+    Math.round((reviewDocs.reduce((sum, r) => sum + r.rating, 0) / reviewDocs.length) * 10) / 10;
+  await db.collection('vendors').updateOne(
+    { _id: vendorTarget.vendorId },
+    { $set: { rating: average, reviewCount: reviewDocs.length } },
+  );
+
+  return reviewDocs.length;
+}
+
+const sc = (quality, professionalism, value, flexibility) => ({
+  quality,
+  professionalism,
+  value,
+  flexibility,
+});
+
+let reviewCount = 0;
+
+reviewCount += await seedReviews(venue, 'VENUE', [
+  {
+    author: 'Sridevi Narayan',
+    monthsAgo: 3,
+    paid: 400_000_00,
+    scores: sc(5, 5, 4, 5),
+    title: 'The hall did all the work for us',
+    body:
+      'We had 640 guests and never once felt crowded. The bridal suite meant my sister could get ready on site instead of driving over in traffic, and the parking staff kept the porch clear the whole evening. Only note is that the full-day rate is at the top of the Banjara Hills range.',
+    reply:
+      'Thank you Sridevi. We have added two more attendants to the porch since your wedding, on exactly this feedback.',
+  },
+  {
+    author: 'Kiran Kumar Reddy',
+    monthsAgo: 7,
+    paid: 250_000_00,
+    scores: sc(5, 4, 5, 4),
+    title: 'Evening slot was the right call',
+    body:
+      'We took the evening-only hire for the reception and it was plenty. Handover from the afternoon event ran about forty minutes late, which ate into our decor setup, but the team stayed past midnight to make up for it and did not charge us extra.',
+  },
+  {
+    author: 'Meghana Rao',
+    monthsAgo: 11,
+    paid: 400_000_00,
+    scores: sc(4, 5, 4, 5),
+    title: 'Straightforward people to deal with',
+    body:
+      'Everything they quoted is what we paid, which after three other venues quoting one number and invoicing another was a relief. Generator kicked in twice during the muhurtham and nobody in the hall noticed.',
+  },
+  {
+    author: 'Anil Prasad',
+    monthsAgo: 14,
+    paid: 400_000_00,
+    scores: sc(3, 3, 3, 2),
+    title: 'Fine hall, hard to get hold of',
+    body:
+      'No complaints about the venue itself on the day. Getting answers in the six weeks before it was another matter - calls unreturned for days at a time, and we found out about the in-house decor rule a fortnight before the wedding.',
+    reply:
+      'This is fair and we are sorry. We hired a dedicated coordinator in March and now answer enquiries within a day.',
+  },
+]);
+
+reviewCount += await seedReviews(venue2, 'VENUE', [
+  {
+    author: 'Lavanya Iyer',
+    monthsAgo: 4,
+    paid: 320_000_00,
+    scores: sc(5, 4, 5, 5),
+    title: 'The lawn at dusk is worth the booking on its own',
+    body:
+      'Our photographer said it was the best light he had worked in all season. It rained for twenty minutes during the sangeet and the backup hall was ready before we had finished worrying about it.',
+  },
+  {
+    author: 'Rohit Malhotra',
+    monthsAgo: 9,
+    paid: 320_000_00,
+    scores: sc(4, 3, 4, 4),
+    title: 'Beautiful, but plan around the sound rules',
+    body:
+      'It is an open venue in a residential pocket, so music has to come down at ten. Nobody hid that from us, but we did not think through what it meant until the baraat was still going at 9:45. Venue itself was spotless.',
+  },
+  {
+    author: 'Deepika Chandran',
+    monthsAgo: 13,
+    paid: 320_000_00,
+    scores: sc(4, 4, 3, 4),
+    title: 'Good day, slightly steep for the size',
+    body:
+      'Five hundred was genuinely comfortable and the stage lighting is better than the photographs suggest. For the same money we could have had a larger indoor hall, so it comes down to how much the garden matters to you. For us it did.',
+  },
+]);
+
+reviewCount += await seedReviews(caterer, 'CATERING', [
+  {
+    author: 'Padmaja Sastry',
+    monthsAgo: 2,
+    paid: 425_000_00,
+    scores: sc(5, 5, 5, 5),
+    title: 'Three days of food and not one dish repeated',
+    body:
+      'They cooked for the pellikuthuru, the muhurtham and the reception, and my father-in-law - who has an opinion about every pulihora he has ever eaten - asked for the cook by name. Counted the plates honestly too; we were billed for 480 against an estimate of 500.',
+    reply: 'It was a pleasure. Please pass our regards to your father-in-law.',
+  },
+  {
+    author: 'Vikram Shetty',
+    monthsAgo: 6,
+    paid: 290_000_00,
+    scores: sc(5, 5, 4, 5),
+    title: 'Live counters were the hit of the evening',
+    body:
+      'We went with the classic thali and added two counters. Queues at the chaat counter never got long because they opened a second one when they saw it building, without being asked. Service staff were in position from the first guest to the last.',
+  },
+  {
+    author: 'Haritha Vemula',
+    monthsAgo: 10,
+    paid: 170_000_00,
+    scores: sc(5, 4, 5, 4),
+    title: 'Handled a Jain menu without a fuss',
+    body:
+      'A third of our guests eat no onion or garlic and they cooked that side of the menu separately rather than telling us it was fine. The two kitchens were kept genuinely apart, which mattered a great deal to my grandmother.',
+  },
+  {
+    author: 'Sanjay Bhatt',
+    monthsAgo: 15,
+    paid: 250_000_00,
+    scores: sc(4, 5, 4, 5),
+    title: 'Excellent food, sweets ran short',
+    body:
+      'The main courses were faultless and there was still hot food coming out at eleven. Both sweets were gone by 9:30 though, and we had ordered for the full count. They knocked off the difference when we raised it.',
+  },
+  {
+    author: 'Nirmala Devi',
+    monthsAgo: 18,
+    paid: 620_000_00,
+    scores: sc(5, 5, 4, 5),
+    title: 'Fed 700 people on a lawn with no kitchen',
+    body:
+      'The venue had no kitchen at all and they brought everything, set up behind a screen, and you would not have known. Premium menu is expensive but the nineteen items are real items, not eleven items and eight garnishes.',
+  },
+]);
+
+reviewCount += await seedReviews(photographer, 'PHOTOGRAPHY', [
+  {
+    author: 'Ananya Krishnan',
+    monthsAgo: 3,
+    paid: 125_000_00,
+    scores: sc(5, 5, 5, 5),
+    title: 'Photographs I actually want on the wall',
+    body:
+      'They spent the morning with us before anyone else arrived, which is why the getting-ready set looks like people rather than poses. Full gallery came back in eighteen days and the film in five weeks, both earlier than promised.',
+  },
+  {
+    author: 'Suresh Babu',
+    monthsAgo: 8,
+    paid: 125_000_00,
+    scores: sc(5, 5, 4, 5),
+    title: 'Invisible all day, and then the gallery arrives',
+    body:
+      'Two photographers and a cinematographer and I could not tell you where any of them stood during the muhurtham. Not the cheapest quote we had by a distance, but the difference is obvious next to what our cousins got.',
+    reply: 'Thank you Suresh. Staying out of the way is most of the job.',
+  },
+  {
+    author: 'Pooja Agarwal',
+    monthsAgo: 12,
+    paid: 125_000_00,
+    scores: sc(5, 4, 5, 5),
+    title: 'Drone footage made the film',
+    body:
+      'We added the drone almost as an afterthought and the opening shot over the mandap is the bit everyone replays. Communication in the last week was a little thin, but they turned up at six in the morning as agreed and stayed past the vidaai.',
+  },
+  {
+    author: 'Ramesh Chandra Gupta',
+    monthsAgo: 16,
+    paid: 125_000_00,
+    scores: sc(5, 5, 5, 4),
+    title: 'Worth every rupee, book them early',
+    body:
+      'We were told in November that our February date was already taken and only got it because of a cancellation. Now that I have seen the photographs I understand why. Three hundred edited images and I could not bring myself to delete any of them.',
+  },
+]);
 
 // -------------------------------------------------------- matrimony profiles
 
@@ -746,6 +1017,88 @@ await db.collection('weddings').insertOne({
   updatedAt: now,
 });
 
+/**
+ * One finished booking for the demo customer, with no review on it.
+ *
+ * Everything downstream of a business rule is normally left for the app to
+ * create, and the funnel below stops at the quote for exactly that reason. This
+ * is the deliberate exception: a review can only be written against a completed
+ * booking, so without one the review form is a screen nobody signing in can
+ * reach. The wedding it belongs to is a past one - last February, not the
+ * upcoming date - because a booking cannot be complete before it has happened.
+ */
+const pastWeddingId = id();
+const lastFebruary = new Date(Date.UTC(now.getUTCFullYear(), 1, 14));
+await db.collection('weddings').insertOne({
+  _id: pastWeddingId,
+  customerId,
+  coupleNames: { bride: 'Anita', groom: 'Rahul' },
+  primaryDate: lastFebruary,
+  city: 'Hyderabad',
+  guestEstimate: 300,
+  budgetTotal: 600_000_00,
+  createdAt: lastFebruary,
+  updatedAt: lastFebruary,
+});
+
+const pastBookingId = id();
+await db.collection('bookings').insertOne({
+  _id: pastBookingId,
+  weddingId: pastWeddingId,
+  customerId,
+  vendorId: photographer.vendorId,
+  quoteId: id(),
+  category: 'PHOTOGRAPHY',
+  status: 'COMPLETED',
+  eventDate: lastFebruary,
+  totalAmount: 125_000_00,
+  paidAmount: 125_000_00,
+  advanceAmount: 31_250_00,
+  commissionBps: 1000,
+  cancellationTiers: [],
+  statusHistory: [],
+  advanceDueAt: new Date(lastFebruary.getTime() - 45 * 24 * 60 * 60 * 1000),
+  createdAt: lastFebruary,
+  updatedAt: lastFebruary,
+});
+
+/**
+ * And the two payments that made it complete.
+ *
+ * The schedule is built from the payment rows, not from paidAmount, so a
+ * booking marked fully paid with no payments behind it renders as ₹0
+ * outstanding and both milestones still "not due yet" - a contradiction on
+ * screen, and the sort of seeded half-truth that sends someone hunting for a
+ * bug in the schedule code.
+ */
+for (const [milestone, amount, daysBefore] of [
+  ['ADVANCE', 31_250_00, 45],
+  ['BALANCE', 93_750_00, 7],
+]) {
+  const paidAt = new Date(lastFebruary.getTime() - daysBefore * 24 * 60 * 60 * 1000);
+  await db.collection('payments').insertOne({
+    _id: id(),
+    purpose: 'BOOKING',
+    bookingId: pastBookingId,
+    customerId,
+    vendorId: photographer.vendorId,
+    commissionBps: 1000,
+    milestone,
+    amount,
+    status: 'CAPTURED',
+    gatewayOrderId: `order_seed_${milestone.toLowerCase()}`,
+    gatewayPaymentId: `pay_seed_${milestone.toLowerCase()}`,
+    method: 'upi',
+    paidAt,
+    refundedAmount: 0,
+    refunds: [],
+    idempotencyKey: randomUUID(),
+    expiresAt: paidAt,
+    createdAt: paidAt,
+    updatedAt: paidAt,
+  });
+}
+
 // ------------------------------------------------------------------- funnel
 
 /**
@@ -884,7 +1237,16 @@ line('Vendor (photography)', `${photographer.mobile}   → /vendor`);
 line('Admin', '8008052727   → KYC queue, ledger');
 console.log('');
 line('Vendors', '4 verified, 6 packages');
+// Read back rather than counted in a variable, so a vendor seeded without
+// reviews shows up here as the gap it is.
+const rated = await db.collection('vendors').find({ reviewCount: { $gt: 0 } }).toArray();
+line(
+  'Reviews',
+  `${reviewCount} across ${rated.length} vendors - ` +
+    rated.map((v) => v.rating.toFixed(1)).join(', '),
+);
 line('Wedding', '14 Feb next year, Hyderabad, 500 guests');
+line('Completed booking', '1 photography booking, awaiting your review');
 // Counted rather than described: these numbers moved every time a profile was
 // added, and a report that quietly goes stale is worse than no report.
 const profileDocs = await db.collection('matrimony_profiles').find({}).toArray();

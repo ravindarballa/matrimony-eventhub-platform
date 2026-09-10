@@ -22,6 +22,7 @@ import {
 import { GuestApi, unwrapGuest } from '../data/guest-api';
 import { VendorCard } from '../components/vendor-card';
 import { ComparePanel } from '../components/compare-panel';
+import { ReviewsPanel } from '../components/reviews-panel';
 import { AuthApi } from '../../auth/data/auth-api';
 import { AuthStore } from '../../auth/data/auth.store';
 import type { AppError } from '../../../core/models/app-error';
@@ -44,7 +45,14 @@ type Step = 'pick' | 'details' | 'code';
 @Component({
   selector: 'eh-guest-enquiry-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, MatButtonModule, MatProgressBarModule, VendorCard, ComparePanel],
+  imports: [
+    RouterLink,
+    MatButtonModule,
+    MatProgressBarModule,
+    VendorCard,
+    ComparePanel,
+    ReviewsPanel,
+  ],
   template: `
     <main class="wrap">
       <header class="head">
@@ -172,6 +180,15 @@ type Step = 'pick' | 'details' | 'code';
           </section>
         }
 
+        @if (reviewing(); as vendor) {
+          <eh-reviews-panel
+            [vendorId]="vendor.id"
+            [businessName]="vendor.businessName"
+            [completedBookings]="vendor.completedBookings"
+            (closed)="reviewing.set(null)"
+          />
+        }
+
         @if (comparing() && selected().size > 1) {
           <eh-compare-panel
             [vendors]="chosen()"
@@ -190,6 +207,7 @@ type Step = 'pick' | 'details' | 'code';
               [picked]="selected().has(vendor.id)"
               [disabled]="!selected().has(vendor.id) && selected().size >= maxVendors"
               (toggled)="toggle(vendor)"
+              (reviewsRequested)="reviewing.set(vendor)"
             />
           } @empty {
             @if (!results.isLoading()) {
@@ -406,6 +424,8 @@ export class GuestEnquiryPage {
   protected readonly sort = signal<'rating' | 'price' | 'response'>('rating');
   protected readonly minRating = signal(0);
   protected readonly comparing = signal(false);
+  /** The vendor whose reviews are open, if any. */
+  protected readonly reviewing = signal<VendorSearchResult | null>(null);
 
   /** The picked vendors, in the order they were picked. */
   protected readonly chosen = computed(() => [...this.selected().values()]);

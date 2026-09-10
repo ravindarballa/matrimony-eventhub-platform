@@ -16,6 +16,7 @@ export * from './communities.js';
 export * from './auth.js';
 export * from './events.js';
 export * from './payments.js';
+export * from './reviews.js';
 export * from './matrimony.js';
 export * from './subscriptions.js';
 export * from './vendors.js';

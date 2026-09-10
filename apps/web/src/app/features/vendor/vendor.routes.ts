@@ -26,6 +26,12 @@ export default [
           import('./pages/calendar-page').then((m) => m.VendorCalendarPage),
       },
       {
+        path: 'reviews',
+        title: 'Reviews · Matrimony EventHub',
+        loadComponent: () =>
+          import('./pages/vendor-reviews-page').then((m) => m.VendorReviewsPage),
+      },
+      {
         path: 'services',
         title: 'Your packages · Matrimony EventHub',
         loadComponent: () =>

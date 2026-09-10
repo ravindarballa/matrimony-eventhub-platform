@@ -142,6 +142,20 @@ interface PricedPackage {
           }
         </div>
 
+        <!--
+          A line from the most recent review, on the card itself. Behind a click
+          it was read by almost nobody, and a star rating with no words attached
+          is the thing families trust least on every site that shows one.
+        -->
+        @if (vendor().topReview; as review) {
+          <button type="button" class="quote" (click)="reviewsRequested.emit()">
+            <span class="qstars" aria-hidden="true">{{ starsFor(review.rating) }}</span>
+            <span class="qtitle">{{ review.title }}</span>
+            <span class="qbody">“{{ review.excerpt }}”</span>
+            <span class="qwho">{{ review.authorName }} · read all reviews</span>
+          </button>
+        }
+
         @if (open()) {
           <p class="desc">{{ vendor().description }}</p>
 
@@ -234,6 +248,20 @@ interface PricedPackage {
 
     .stats { display: flex; gap: 0.7rem; flex-wrap: wrap; font-size: 0.73rem;
              color: rgb(0 0 0 / 0.55); }
+
+    .quote { display: flex; flex-direction: column; gap: 0.1rem; width: 100%;
+             text-align: left; font: inherit; cursor: pointer; padding: 0.45rem 0.55rem;
+             border: 0; border-left: 3px solid #e8a33d; border-radius: 0 6px 6px 0;
+             background: rgb(232 163 61 / 0.09); }
+    .quote:hover { background: rgb(232 163 61 / 0.16); }
+    .qstars { color: #e8a33d; font-size: 0.78rem; letter-spacing: 0.04em; }
+    .qtitle { font-size: 0.79rem; font-weight: 600; color: rgb(0 0 0 / 0.8);
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Three lines: enough to be a sentence, not enough to be the whole card. */
+    .qbody { font-size: 0.76rem; line-height: 1.45; color: rgb(0 0 0 / 0.65);
+             display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3;
+             -webkit-box-orient: vertical; overflow: hidden; }
+    .qwho { font-size: 0.68rem; color: rgb(0 0 0 / 0.45); margin-top: 0.1rem; }
     .desc { margin: 0.2rem 0 0; font-size: 0.83rem; color: rgb(0 0 0 / 0.75); line-height: 1.5; }
 
     .packages { list-style: none; margin: 0.2rem 0 0; padding: 0; display: flex;
@@ -335,10 +363,10 @@ export class VendorCard {
     return n ? `${n} package${n === 1 ? '' : 's'}` : 'Details';
   });
 
-  protected readonly stars = computed(() => {
-    const r = Math.round(this.vendor().rating ?? 0);
-    return '★★★★★'.slice(0, r) + '☆☆☆☆☆'.slice(0, 5 - r);
-  });
+  protected starsFor(rating: number): string {
+    const filled = Math.round(rating);
+    return '★★★★★'.slice(0, filled) + '☆☆☆☆☆'.slice(0, 5 - filled);
+  }
 
   protected readonly inr = (paisa: number): string => formatInr(paisa as Paisa);
   protected readonly label = (value: string): string =>

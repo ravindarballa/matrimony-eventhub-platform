@@ -325,6 +325,50 @@ describe('Reviews (e2e)', () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
+  it('carries the newest review onto the search card, trimmed at a word', async () => {
+    const { id: vendorId } = await aVendor();
+
+    const older = await aCustomer('Meghana Rao');
+    await reviews.create(older, {
+      bookingId: await aBooking(older, vendorId),
+      scores: scores(5),
+      title: 'The older one',
+      body,
+    });
+
+    const newer = await aCustomer('Priya Sharma');
+    await reviews.create(newer, {
+      bookingId: await aBooking(newer, vendorId),
+      scores: scores(4),
+      title: 'The newer one',
+      // Long enough to be cut, and no word straddling the 160-character mark
+      // by accident - the point of the assertion is where the cut lands.
+      body: 'They ran the sangeet without a single thing going wrong. '.repeat(6),
+    });
+
+    const { items } = await vendors.search({ category: VendorCategory.VENUE });
+    const card = items.find((v) => v.id === vendorId);
+
+    // Newest, not highest-rated: a card that always quotes five stars is an
+    // advertisement, and people learn to skip advertisements.
+    expect(card?.topReview?.title).toBe('The newer one');
+    expect(card?.topReview?.authorName).toBe('Priya S.');
+    expect(card?.topReview?.excerpt.endsWith('…')).toBe(true);
+    expect(card?.topReview?.excerpt).not.toMatch(/\s…$/);
+    // Trimmed at a word boundary, so it never ends mid-word.
+    expect(card?.topReview?.excerpt.replace('…', '')).toMatch(/[a-z.]$/);
+  });
+
+  it('leaves topReview null for a vendor nobody has reviewed', async () => {
+    const { id: vendorId } = await aVendor();
+
+    const { items } = await vendors.search({ category: VendorCategory.VENUE });
+    const card = items.find((v) => v.id === vendorId);
+
+    expect(card).toBeDefined();
+    expect(card?.topReview).toBeNull();
+  });
+
   it('reports a vendor with no reviews as zero, not as unrated-but-scored', async () => {
     const { id: vendorId } = await aVendor();
     const summary = await reviews.summaryFor(vendorId);

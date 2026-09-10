@@ -104,10 +104,28 @@ export interface VendorSearchQuery {
   limit?: number;
 }
 
+/**
+ * One line from a review, to carry on a search card.
+ *
+ * A star rating on its own is a number a family has no way to weigh. One
+ * sentence in a real customer's words does more to settle a shortlist than the
+ * difference between 4.6 and 4.8, and putting it on the card means it is read
+ * by the people deciding rather than only by the few who click through.
+ */
+export interface ReviewSnippet {
+  authorName: string;
+  rating: number;
+  title: string;
+  /** The opening of the review, trimmed at a word boundary. */
+  excerpt: string;
+}
+
 export interface VendorSearchResult extends VendorDto {
   /** Only when the query carried a date. */
   availableOnDate?: boolean | null;
   services: VendorServiceDto[];
+  /** The most recent review, or null where a vendor has none yet. */
+  topReview?: ReviewSnippet | null;
 }
 
 // ---------------------------------------------------------------------------

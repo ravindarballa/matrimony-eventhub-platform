@@ -28,6 +28,7 @@ import {
   type VendorDto,
   type VendorSearchQuery,
   type VendorCalendarDay,
+  type ReviewSnippet,
   type VendorSearchResult,
   type VendorServiceDto,
 } from '@eventhub/contracts';
@@ -37,6 +38,7 @@ import {
   type VendorAvailabilityDocument,
 } from '../../events/schemas/vendor-availability.schema.js';
 import { Vendor, type VendorDocument } from '../schemas/vendor.schema.js';
+import { Review, type ReviewDocument } from '../schemas/review.schema.js';
 import {
   FILE_STORAGE,
   type FileStorage,
@@ -64,6 +66,9 @@ const toUtcMidnight = (d: Date | string): Date => {
 /** How many recent response times feed the median. */
 const RESPONSE_WINDOW = 20;
 
+/** How much of a review body a card carries before it stops being a card. */
+const SNIPPET_CHARS = 160;
+
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 
@@ -77,6 +82,9 @@ export class VendorsService {
     private readonly services: Model<VendorServiceDocument>,
     @InjectModel(VendorAvailability.name)
     private readonly availability: Model<VendorAvailabilityDocument>,
+    // Read-only: search decorates each card with one review, and going through
+    // ReviewsService for it would make the two services mutually dependent.
+    @InjectModel(Review.name) private readonly reviews: Model<ReviewDocument>,
     private readonly events: EventEmitter2,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     private readonly images: ImageValidationService,
@@ -288,9 +296,10 @@ export class VendorsService {
     ]);
 
     const ids = rows.map((v) => v._id);
-    const [services, taken] = await Promise.all([
+    const [services, taken, snippets] = await Promise.all([
       this.services.find({ vendorId: { $in: ids }, isActive: true }).sort({ basePrice: 1 }),
       query.date ? this.takenVendorIds(ids, query.date) : Promise.resolve(new Set<string>()),
+      this.reviewSnippets(ids),
     ]);
 
     const byVendor = new Map<string, VendorServiceDto[]>();
@@ -304,12 +313,62 @@ export class VendorsService {
         ...this.toDto(v),
         services: byVendor.get(v.id as string) ?? [],
         availableOnDate: query.date ? !taken.has(v.id as string) : null,
+        topReview: snippets.get(v.id as string) ?? null,
       }))
       // A date in the query means "show me what I can book", not "show me
       // everything and let me discover the disappointment on the next page".
       .filter((v) => v.availableOnDate !== false);
 
     return { items, total, page };
+  }
+
+  /**
+   * The newest review for each vendor on the page, as one short quote.
+   *
+   * Newest rather than best. Picking the highest-rated would make this a
+   * marketing line the platform writes on the vendor's behalf, and a card that
+   * always quotes five stars teaches people to ignore the quote. The most
+   * recent one is simply what a couple would see first anyway.
+   *
+   * One aggregate for the whole page rather than a query per card: the page is
+   * at most twenty vendors, and twenty round trips to decorate a list is how a
+   * search gets slow.
+   */
+  private async reviewSnippets(
+    vendorIds: Types.ObjectId[],
+  ): Promise<Map<string, ReviewSnippet>> {
+    const snippets = new Map<string, ReviewSnippet>();
+    if (vendorIds.length === 0) return snippets;
+
+    const rows = await this.reviews.aggregate<{
+      _id: Types.ObjectId;
+      authorName: string;
+      rating: number;
+      title: string;
+      body: string;
+    }>([
+      { $match: { vendorId: { $in: vendorIds } } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: '$vendorId',
+          authorName: { $first: '$authorName' },
+          rating: { $first: '$rating' },
+          title: { $first: '$title' },
+          body: { $first: '$body' },
+        },
+      },
+    ]);
+
+    for (const row of rows) {
+      snippets.set(row._id.toString(), {
+        authorName: row.authorName,
+        rating: row.rating,
+        title: row.title,
+        excerpt: excerpt(row.body, SNIPPET_CHARS),
+      });
+    }
+    return snippets;
   }
 
   /** Vendors whose calendar is HELD or BOOKED on that date. */
@@ -631,6 +690,21 @@ const SORTS: Record<string, Record<string, 1 | -1>> = {
   price: { priceFrom: 1 },
   response: { medianResponseMins: 1 },
 };
+
+/**
+ * Trims text to a length without cutting a word in half.
+ *
+ * The whole point of a snippet is that it reads like a sentence; "the bridal sui"
+ * reads like a bug.
+ */
+function excerpt(body: string, max: number): string {
+  const text = body.trim();
+  if (text.length <= max) return text;
+
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

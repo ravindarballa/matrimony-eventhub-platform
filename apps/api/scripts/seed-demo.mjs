@@ -437,7 +437,9 @@ async function profile({
     family: {
       fatherOccupation: 'Retired bank manager',
       motherOccupation: 'Homemaker',
-      siblings: 1,
+      brothers: 1,
+      sisters: 1,
+      familyStatus: 'UPPER_MIDDLE_CLASS',
       familyType: 'NUCLEAR',
       nativePlace: 'Warangal',
     },
@@ -506,7 +508,9 @@ await db.collection('matrimony_profiles').insertOne({
   family: {
     fatherOccupation: 'Retired teacher',
     motherOccupation: 'Homemaker',
-    siblings: 1,
+    brothers: 1,
+    sisters: 1,
+    familyStatus: 'UPPER_MIDDLE_CLASS',
     familyType: 'NUCLEAR',
     nativePlace: 'Warangal',
   },

@@ -24,8 +24,13 @@ import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
   Diet,
+  FamilyStatus,
   Gender,
+  HabitFrequency,
+  MAX_HOBBIES,
+  MAX_PERSONAL_INTERESTS,
   MIN_AGE_BY_GENDER,
+  type Paisa,
   RELIGIONS,
   communitiesFor,
   MaritalStatus,
@@ -38,6 +43,7 @@ import {
 
 import { MatrimonyApi, unwrap } from '../data/matrimony-api';
 import { PhotoManager } from '../components/photo-manager';
+import { TagInput } from '../components/tag-input';
 import type { AppError } from '../../../core/models/app-error';
 
 interface ProfileModel {
@@ -54,10 +60,24 @@ interface ProfileModel {
   city: string;
   diet: Diet;
   about: string;
+  state: string;
   highestQualification: string;
+  fieldOfStudy: string;
+  institution: string;
   occupation: string;
+  employer: string;
+  annualIncomeLakhs: number | null;
   fatherOccupation: string;
+  motherOccupation: string;
+  brothers: number | null;
+  sisters: number | null;
+  familyType: 'JOINT' | 'NUCLEAR' | '';
+  familyStatus: FamilyStatus | '';
   nativePlace: string;
+  smoking: HabitFrequency | '';
+  drinking: HabitFrequency | '';
+  birthTime: string;
+  birthPlace: string;
   nakshatra: number | null;
   rashi: number | null;
   marsHouse: number | null;
@@ -92,6 +112,20 @@ const empty = (): ProfileModel => ({
   maritalStatus: 'NEVER_MARRIED',
   religion: '',
   community: '',
+  state: '',
+  fieldOfStudy: '',
+  institution: '',
+  employer: '',
+  annualIncomeLakhs: null,
+  motherOccupation: '',
+  brothers: null,
+  sisters: null,
+  familyType: '',
+  familyStatus: '',
+  smoking: '',
+  drinking: '',
+  birthTime: '',
+  birthPlace: '',
   gotra: '',
   motherTongue: '',
   city: '',
@@ -120,6 +154,7 @@ const empty = (): ProfileModel => ({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     PhotoManager,
+    TagInput,
     FormField,
     MatButtonModule,
     MatFormFieldModule,
@@ -280,10 +315,17 @@ const empty = (): ProfileModel => ({
           </mat-form-field>
         </div>
 
-        <mat-form-field appearance="outline">
-          <mat-label>City</mat-label>
-          <input matInput [formField]="f.city" />
-        </mat-form-field>
+        <div class="pair">
+          <mat-form-field appearance="outline">
+            <mat-label>City</mat-label>
+            <input matInput [formField]="f.city" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>State</mat-label>
+            <input matInput [formField]="f.state" />
+          </mat-form-field>
+        </div>
 
         <h2>Education, career and family</h2>
 
@@ -294,10 +336,42 @@ const empty = (): ProfileModel => ({
           </mat-form-field>
 
           <mat-form-field appearance="outline">
+            <mat-label>Field of study</mat-label>
+            <input matInput [formField]="f.fieldOfStudy" />
+          </mat-form-field>
+        </div>
+
+        <div class="pair">
+          <mat-form-field appearance="outline">
+            <mat-label>College or university</mat-label>
+            <input matInput [formField]="f.institution" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
             <mat-label>Occupation</mat-label>
             <input matInput [formField]="f.occupation" />
           </mat-form-field>
         </div>
+
+        <div class="pair">
+          <mat-form-field appearance="outline">
+            <mat-label>Company</mat-label>
+            <input matInput [formField]="f.employer" />
+          </mat-form-field>
+
+          <!--
+            Entered in lakhs, stored in paisa. Nobody types 1800000000, and the
+            server wants the smallest unit; the conversion belongs here rather
+            than in anyone's head.
+          -->
+          <mat-form-field appearance="outline">
+            <mat-label>Annual income (₹ lakhs)</mat-label>
+            <input matInput type="number" [formField]="f.annualIncomeLakhs" />
+            <mat-hint>Shown to others as a band, never as an exact figure</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <h3>Family</h3>
 
         <div class="pair">
           <mat-form-field appearance="outline">
@@ -306,10 +380,92 @@ const empty = (): ProfileModel => ({
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Native place</mat-label>
-            <input matInput [formField]="f.nativePlace" />
+            <mat-label>Mother's occupation</mat-label>
+            <input matInput [formField]="f.motherOccupation" />
           </mat-form-field>
         </div>
+
+        <div class="pair">
+          <mat-form-field appearance="outline">
+            <mat-label>Brothers</mat-label>
+            <input matInput type="number" [formField]="f.brothers" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Sisters</mat-label>
+            <input matInput type="number" [formField]="f.sisters" />
+          </mat-form-field>
+        </div>
+
+        <div class="pair">
+          <mat-form-field appearance="outline">
+            <mat-label>Family type</mat-label>
+            <mat-select [formField]="f.familyType">
+              <mat-option value="">Not saying</mat-option>
+              <mat-option value="JOINT">Joint</mat-option>
+              <mat-option value="NUCLEAR">Nuclear</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Family status</mat-label>
+            <mat-select [formField]="f.familyStatus">
+              <mat-option value="">Not saying</mat-option>
+              @for (fs of familyStatuses; track fs) {
+                <mat-option [value]="fs">{{ label(fs) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Native place</mat-label>
+          <input matInput [formField]="f.nativePlace" />
+        </mat-form-field>
+
+        <h3>Lifestyle and interests</h3>
+
+        <div class="pair">
+          <mat-form-field appearance="outline">
+            <mat-label>Smoking</mat-label>
+            <mat-select [formField]="f.smoking">
+              <mat-option value="">Not saying</mat-option>
+              @for (h of habits; track h) {
+                <mat-option [value]="h">{{ label(h) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Drinking</mat-label>
+            <mat-select [formField]="f.drinking">
+              <mat-option value="">Not saying</mat-option>
+              @for (h of habits; track h) {
+                <mat-option [value]="h">{{ label(h) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <!--
+          Tags rather than a comma-separated box: the server stores an array, so
+          a text field would only move the splitting problem to whoever reads it.
+        -->
+        <eh-tag-input
+          label="Hobbies"
+          placeholder="Carnatic music, trekking…"
+          [tags]="hobbies()"
+          [max]="maxHobbies"
+          (tagsChange)="hobbies.set($event)"
+        />
+
+        <eh-tag-input
+          label="Interests"
+          placeholder="Cricket, travel, cooking…"
+          [tags]="personalInterests()"
+          [max]="maxInterests"
+          (tagsChange)="personalInterests.set($event)"
+        />
 
         <mat-form-field appearance="outline">
           <mat-label>About</mat-label>
@@ -436,6 +592,19 @@ export class MatrimonyProfileEditPage {
   private readonly api = inject(MatrimonyApi);
 
   protected readonly religions = RELIGIONS;
+  protected readonly familyStatuses = Object.values(FamilyStatus);
+  protected readonly habits = Object.values(HabitFrequency);
+  protected readonly maxHobbies = MAX_HOBBIES;
+  protected readonly maxInterests = MAX_PERSONAL_INTERESTS;
+
+  /**
+   * Held outside the form model because Signal Forms is built around fixed
+   * fields and these are lists that grow and shrink. They are seeded when the
+   * profile loads and read back on save.
+   */
+  protected readonly hobbies = signal<string[]>([]);
+  protected readonly personalInterests = signal<string[]>([]);
+
 
   /**
    * Suggestions for the community box, narrowed to the religion currently
@@ -489,6 +658,8 @@ export class MatrimonyProfileEditPage {
       const p = this.existing.value();
       if (!p) return;
 
+      this.hobbies.set([...(p.hobbies ?? [])]);
+      this.personalInterests.set([...(p.personalInterests ?? [])]);
       this.model.set({
         displayName: p.displayName,
         managedBy: p.managedBy,
@@ -503,10 +674,26 @@ export class MatrimonyProfileEditPage {
         city: p.city,
         diet: p.diet,
         about: p.about ?? '',
+        state: p.state ?? '',
         highestQualification: p.education.highestQualification ?? '',
+        fieldOfStudy: p.education.fieldOfStudy ?? '',
+        institution: p.education.institution ?? '',
         occupation: p.career.occupation ?? '',
+        employer: p.career.employer ?? '',
+        // Stored in paisa, edited in lakhs.
+        annualIncomeLakhs:
+          p.career.annualIncome != null ? p.career.annualIncome / 100 / 100_000 : null,
         fatherOccupation: p.family.fatherOccupation ?? '',
+        motherOccupation: p.family.motherOccupation ?? '',
+        brothers: p.family.brothers ?? null,
+        sisters: p.family.sisters ?? null,
+        familyType: p.family.familyType ?? '',
+        familyStatus: p.family.familyStatus ?? '',
         nativePlace: p.family.nativePlace ?? '',
+        smoking: p.lifestyle?.smoking ?? '',
+        drinking: p.lifestyle?.drinking ?? '',
+        birthTime: p.horoscope.birthTime ?? '',
+        birthPlace: p.horoscope.birthPlace ?? '',
         nakshatra: p.horoscope.nakshatra ?? null,
         rashi: p.horoscope.rashi ?? null,
         marsHouse: p.horoscope.marsHouse ?? null,
@@ -548,13 +735,39 @@ export class MatrimonyProfileEditPage {
           city: m.city,
           diet: m.diet,
           about: m.about || undefined,
-          education: { highestQualification: m.highestQualification },
-          career: { occupation: m.occupation },
+          state: m.state || undefined,
+          education: {
+            highestQualification: m.highestQualification,
+            fieldOfStudy: m.fieldOfStudy || undefined,
+            institution: m.institution || undefined,
+          },
+          career: {
+            occupation: m.occupation,
+            employer: m.employer || undefined,
+            // Lakhs back to paisa. Undefined rather than 0 when it is blank -
+            // "not saying" and "nothing" are different answers.
+            annualIncome: (m.annualIncomeLakhs != null && m.annualIncomeLakhs !== ('' as never)
+                ? Math.round(Number(m.annualIncomeLakhs) * 100_000 * 100)
+                : undefined) as Paisa | undefined,
+          },
           family: {
             fatherOccupation: m.fatherOccupation,
+            motherOccupation: m.motherOccupation || undefined,
+            brothers: m.brothers != null ? Number(m.brothers) : undefined,
+            sisters: m.sisters != null ? Number(m.sisters) : undefined,
+            familyType: m.familyType || undefined,
+            familyStatus: m.familyStatus || undefined,
             nativePlace: m.nativePlace,
           },
+          lifestyle: {
+            smoking: m.smoking || undefined,
+            drinking: m.drinking || undefined,
+          },
+          hobbies: this.hobbies(),
+          personalInterests: this.personalInterests(),
           horoscope: {
+            birthTime: m.birthTime || undefined,
+            birthPlace: m.birthPlace || undefined,
             nakshatra: m.nakshatra ?? undefined,
             rashi: m.rashi ?? undefined,
             marsHouse: m.marsHouse ?? undefined,

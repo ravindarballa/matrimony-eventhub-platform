@@ -44,12 +44,52 @@ export interface CareerDetails {
   annualIncome?: Paisa | null;
 }
 
+/**
+ * How well off the family is, in the words Indian matrimony sites use.
+ *
+ * Distinct from familyType, which is only whether the household is joint or
+ * nuclear. Families ask both, and answering one does not answer the other.
+ */
+export const FamilyStatus = {
+  MIDDLE_CLASS: 'MIDDLE_CLASS',
+  UPPER_MIDDLE_CLASS: 'UPPER_MIDDLE_CLASS',
+  AFFLUENT: 'AFFLUENT',
+} as const;
+export type FamilyStatus = (typeof FamilyStatus)[keyof typeof FamilyStatus];
+
 export interface FamilyDetails {
   fatherOccupation?: string | null;
   motherOccupation?: string | null;
-  siblings?: number | null;
+  /**
+   * Counted separately rather than as one sibling total. Families ask how many
+   * brothers and how many sisters, and how many of each are already married -
+   * a single number answers none of that.
+   */
+  brothers?: number | null;
+  sisters?: number | null;
   familyType?: 'JOINT' | 'NUCLEAR' | null;
+  familyStatus?: FamilyStatus | null;
   nativePlace?: string | null;
+}
+
+/** How often, for the habits families ask about directly. */
+export const HabitFrequency = {
+  NEVER: 'NEVER',
+  OCCASIONALLY: 'OCCASIONALLY',
+  REGULARLY: 'REGULARLY',
+} as const;
+export type HabitFrequency = (typeof HabitFrequency)[keyof typeof HabitFrequency];
+
+/**
+ * Habits, kept apart from diet.
+ *
+ * Diet is on the profile itself because it is a hard filter for many families;
+ * these two are asked about but rarely filtered on, so they live together here
+ * and are optional throughout.
+ */
+export interface LifestyleDetails {
+  smoking?: HabitFrequency | null;
+  drinking?: HabitFrequency | null;
 }
 
 /**
@@ -108,7 +148,16 @@ export interface MatrimonyProfileDto {
   education: EducationDetails;
   career: CareerDetails;
   family: FamilyDetails;
+  lifestyle: LifestyleDetails;
   horoscope: HoroscopeDetails;
+  /** Free text, one per entry: 'Carnatic music', 'Trekking'. */
+  hobbies: string[];
+  /**
+   * Named personalInterests, not interests. On this platform an Interest is
+   * already a proposal one member sends another, and two meanings for that word
+   * in one profile would be a bug waiting to be written.
+   */
+  personalInterests: string[];
   photos: ProfilePhoto[];
   privacy: ProfilePrivacy;
   status: ProfileStatus;
@@ -154,6 +203,9 @@ export interface ProfileDetailDto extends ProfileCardDto {
   educationDetails: EducationDetails;
   career: Omit<CareerDetails, 'annualIncome'> & { incomeBand?: string | null };
   family: FamilyDetails;
+  lifestyle: LifestyleDetails;
+  hobbies: string[];
+  personalInterests: string[];
   horoscope: Omit<HoroscopeDetails, 'birthTime' | 'birthPlace'>;
   photos: { id: string; url: string | null; isPrimary: boolean }[];
   /** Present only when the viewer has earned it: mutual interest AND a plan. */
@@ -184,7 +236,10 @@ export interface UpsertProfileRequest {
   education?: Partial<EducationDetails>;
   career?: Partial<CareerDetails>;
   family?: Partial<FamilyDetails>;
+  lifestyle?: Partial<LifestyleDetails>;
   horoscope?: Partial<HoroscopeDetails>;
+  hobbies?: string[];
+  personalInterests?: string[];
   privacy?: Partial<ProfilePrivacy>;
 }
 
@@ -403,3 +458,12 @@ export const ALLOWED_PHOTO_MIME_TYPES = [
   'image/webp',
 ] as const;
 export type AllowedPhotoMimeType = (typeof ALLOWED_PHOTO_MIME_TYPES)[number];
+
+/**
+ * Caps on the free-text lists. Chosen so a profile stays scannable: past about
+ * a dozen, hobbies stop describing a person and start being a word cloud.
+ */
+export const MAX_HOBBIES = 12;
+export const MAX_PERSONAL_INTERESTS = 12;
+/** Long enough for 'Watching Telugu classic cinema', short enough to be a tag. */
+export const MAX_TAG_LENGTH = 40;

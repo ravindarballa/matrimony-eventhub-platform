@@ -144,7 +144,12 @@ import type { AppError } from '../../../core/models/app-error';
           <dl>
             <div><dt>Father</dt><dd>{{ p.family.fatherOccupation || '—' }}</dd></div>
             <div><dt>Mother</dt><dd>{{ p.family.motherOccupation || '—' }}</dd></div>
-            <div><dt>Siblings</dt><dd>{{ p.family.siblings ?? '—' }}</dd></div>
+            <div><dt>Brothers</dt><dd>{{ p.family.brothers ?? '—' }}</dd></div>
+            <div><dt>Sisters</dt><dd>{{ p.family.sisters ?? '—' }}</dd></div>
+            <div>
+              <dt>Family status</dt>
+              <dd>{{ p.family.familyStatus ? label(p.family.familyStatus) : '—' }}</dd>
+            </div>
             <div><dt>Native place</dt><dd>{{ p.family.nativePlace || '—' }}</dd></div>
           </dl>
         </section>

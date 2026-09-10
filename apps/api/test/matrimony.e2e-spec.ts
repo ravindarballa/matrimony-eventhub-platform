@@ -313,13 +313,100 @@ describe('Matrimony (e2e)', () => {
         motherTongue: before!.motherTongue,
         city: before!.city,
         diet: before!.diet,
-        family: { siblings: 2 },
+        family: { brothers: 2, sisters: 1 },
       });
 
       const after = await profiles.findOwn(userId);
-      expect(after!.family.siblings).toBe(2);
+      expect(after!.family.brothers).toBe(2);
+      expect(after!.family.sisters).toBe(1);
       expect(after!.education.highestQualification).toBe('B.Tech');
       expect(after!.career.occupation).toBe('Software Engineer');
+    });
+
+    /**
+     * Every section upsert accepts, in one pass.
+     *
+     * Each one is applied by its own line in upsert(), and three were added to
+     * the DTO without one: they validated, saved nothing, and read back empty.
+     * Naming them all here is what catches the next omission.
+     */
+    it('stores every section it accepts, lists included', async () => {
+      const { userId } = await seed();
+      const before = await profiles.findOwn(userId);
+
+      const identity = {
+        displayName: before!.displayName,
+        managedBy: before!.managedBy,
+        gender: before!.gender,
+        dateOfBirth: before!.dateOfBirth,
+        heightCm: before!.heightCm,
+        maritalStatus: before!.maritalStatus,
+        religion: before!.religion,
+        community: before!.community,
+        motherTongue: before!.motherTongue,
+        city: before!.city,
+        diet: before!.diet,
+      };
+
+      await profiles.upsert(userId, {
+        ...identity,
+        state: 'Telangana',
+        education: { fieldOfStudy: 'CSE', institution: 'JNTU' },
+        career: { employer: 'Infosys', annualIncome: 1_800_000_00 },
+        family: {
+          motherOccupation: 'Homemaker',
+          brothers: 2,
+          sisters: 1,
+          familyType: 'NUCLEAR',
+          familyStatus: 'UPPER_MIDDLE_CLASS',
+        },
+        lifestyle: { smoking: 'NEVER', drinking: 'OCCASIONALLY' },
+        hobbies: ['Carnatic music', 'Trekking'],
+        personalInterests: ['Cricket'],
+      } as never);
+
+      const after = await profiles.findOwn(userId);
+      expect(after!.state).toBe('Telangana');
+      expect(after!.education.institution).toBe('JNTU');
+      expect(after!.career.employer).toBe('Infosys');
+      expect(after!.career.annualIncome).toBe(1_800_000_00);
+      expect(after!.family.motherOccupation).toBe('Homemaker');
+      expect(after!.family.sisters).toBe(1);
+      expect(after!.family.familyStatus).toBe('UPPER_MIDDLE_CLASS');
+      expect(after!.lifestyle.smoking).toBe('NEVER');
+      expect(after!.lifestyle.drinking).toBe('OCCASIONALLY');
+      expect(after!.hobbies).toEqual(['Carnatic music', 'Trekking']);
+      expect(after!.personalInterests).toEqual(['Cricket']);
+    });
+
+    /**
+     * Lists replace rather than merge. Merging would make them grow-only, so
+     * removing the last hobby would be impossible.
+     */
+    it('replaces the tag lists rather than merging them', async () => {
+      const { userId } = await seed();
+      const before = await profiles.findOwn(userId);
+      const identity = {
+        displayName: before!.displayName,
+        managedBy: before!.managedBy,
+        gender: before!.gender,
+        dateOfBirth: before!.dateOfBirth,
+        heightCm: before!.heightCm,
+        maritalStatus: before!.maritalStatus,
+        religion: before!.religion,
+        community: before!.community,
+        motherTongue: before!.motherTongue,
+        city: before!.city,
+        diet: before!.diet,
+      };
+
+      await profiles.upsert(userId, {
+        ...identity,
+        hobbies: ['Trekking', 'Chess'],
+      } as never);
+      await profiles.upsert(userId, { ...identity, hobbies: [] } as never);
+
+      expect((await profiles.findOwn(userId))!.hobbies).toEqual([]);
     });
 
     it('hands off to the events module when a profile goes engaged', async () => {

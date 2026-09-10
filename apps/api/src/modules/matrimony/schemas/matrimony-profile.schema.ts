@@ -1,7 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import type { HydratedDocument } from 'mongoose';
-import { PhotoPrivacy, ProfileStatus } from '@eventhub/contracts';
+import {
+  FamilyStatus,
+  HabitFrequency,
+  PhotoPrivacy,
+  ProfileStatus,
+} from '@eventhub/contracts';
 
 export type MatrimonyProfileDocument = HydratedDocument<MatrimonyProfile>;
 
@@ -24,8 +29,10 @@ export class Career {
 export class Family {
   @Prop({ trim: true }) fatherOccupation?: string;
   @Prop({ trim: true }) motherOccupation?: string;
-  @Prop() siblings?: number;
+  @Prop() brothers?: number;
+  @Prop() sisters?: number;
   @Prop({ type: String, enum: ['JOINT', 'NUCLEAR'] }) familyType?: string;
+  @Prop({ type: String, enum: Object.values(FamilyStatus) }) familyStatus?: FamilyStatus;
   @Prop({ trim: true }) nativePlace?: string;
 }
 
@@ -90,7 +97,14 @@ export class Privacy {
   showContact!: 'ON_MUTUAL_INTEREST' | 'MEMBERS_ONLY';
 }
 
+@Schema({ _id: false })
+export class Lifestyle {
+  @Prop({ type: String, enum: Object.values(HabitFrequency) }) smoking?: HabitFrequency;
+  @Prop({ type: String, enum: Object.values(HabitFrequency) }) drinking?: HabitFrequency;
+}
+
 const EducationSchema = SchemaFactory.createForClass(Education);
+const LifestyleSchema = SchemaFactory.createForClass(Lifestyle);
 const CareerSchema = SchemaFactory.createForClass(Career);
 const FamilySchema = SchemaFactory.createForClass(Family);
 const HoroscopeSchema = SchemaFactory.createForClass(Horoscope);
@@ -156,6 +170,10 @@ export class MatrimonyProfile {
   @Prop({ type: EducationSchema, default: {} }) education!: Education;
   @Prop({ type: CareerSchema, default: {} }) career!: Career;
   @Prop({ type: FamilySchema, default: {} }) family!: Family;
+  @Prop({ type: LifestyleSchema, default: {} }) lifestyle!: Lifestyle;
+  /** Free text tags. Capped in the DTO, where the message can be a useful one. */
+  @Prop({ type: [String], default: [] }) hobbies!: string[];
+  @Prop({ type: [String], default: [] }) personalInterests!: string[];
   @Prop({ type: HoroscopeSchema, default: {} }) horoscope!: Horoscope;
   @Prop({ type: [PhotoSchema], default: [] }) photos!: Photo[];
   @Prop({ type: PrivacySchema, default: {} }) privacy!: Privacy;

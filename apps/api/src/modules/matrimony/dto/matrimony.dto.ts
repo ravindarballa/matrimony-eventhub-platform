@@ -18,7 +18,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  FamilyStatus,
+  HabitFrequency,
+  MAX_HOBBIES,
   MAX_MESSAGE_LENGTH,
+  MAX_PERSONAL_INTERESTS,
+  MAX_TAG_LENGTH,
   Diet,
   Gender,
   MaritalStatus,
@@ -39,11 +44,18 @@ class CareerDto {
   @IsOptional() @IsInt() @Min(0) annualIncome?: number;
 }
 
+class LifestyleDto {
+  @IsOptional() @IsEnum(HabitFrequency) smoking?: HabitFrequency;
+  @IsOptional() @IsEnum(HabitFrequency) drinking?: HabitFrequency;
+}
+
 class FamilyDto {
   @IsOptional() @IsString() @MaxLength(120) fatherOccupation?: string;
   @IsOptional() @IsString() @MaxLength(120) motherOccupation?: string;
-  @IsOptional() @IsInt() @Min(0) @Max(20) siblings?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(20) brothers?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(20) sisters?: number;
   @IsOptional() @IsIn(['JOINT', 'NUCLEAR']) familyType?: 'JOINT' | 'NUCLEAR';
+  @IsOptional() @IsEnum(FamilyStatus) familyStatus?: FamilyStatus;
   @IsOptional() @IsString() @MaxLength(120) nativePlace?: string;
 }
 
@@ -112,6 +124,23 @@ export class UpsertProfileDto {
   @IsOptional() @ValidateNested() @Type(() => EducationDto) education?: EducationDto;
   @IsOptional() @ValidateNested() @Type(() => CareerDto) career?: CareerDto;
   @IsOptional() @ValidateNested() @Type(() => FamilyDto) family?: FamilyDto;
+  @IsOptional() @ValidateNested() @Type(() => LifestyleDto) lifestyle?: LifestyleDto;
+
+  // Free-text tags. Each entry is trimmed and length-capped so one pasted
+  // paragraph cannot become a hobby.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_HOBBIES)
+  @IsString({ each: true })
+  @MaxLength(MAX_TAG_LENGTH, { each: true })
+  hobbies?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_PERSONAL_INTERESTS)
+  @IsString({ each: true })
+  @MaxLength(MAX_TAG_LENGTH, { each: true })
+  personalInterests?: string[];
   @IsOptional() @ValidateNested() @Type(() => HoroscopeDto) horoscope?: HoroscopeDto;
   @IsOptional() @ValidateNested() @Type(() => PrivacyDto) privacy?: PrivacyDto;
 }

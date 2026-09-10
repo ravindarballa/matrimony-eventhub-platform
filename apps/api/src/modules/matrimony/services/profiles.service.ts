@@ -150,7 +150,13 @@ export class ProfilesService {
     if (dto.career) Object.assign(profile.career, dto.career);
     if (dto.family) Object.assign(profile.family, dto.family);
     if (dto.horoscope) Object.assign(profile.horoscope, dto.horoscope);
+    if (dto.lifestyle) Object.assign(profile.lifestyle, dto.lifestyle);
     if (dto.privacy) Object.assign(profile.privacy, dto.privacy);
+
+    // Lists replace rather than merge: removing a hobby has to be possible, and
+    // merging arrays would make the set grow-only.
+    if (dto.hobbies) profile.hobbies = dto.hobbies;
+    if (dto.personalInterests) profile.personalInterests = dto.personalInterests;
 
     profile.completeness = this.completeness(profile);
     await profile.save();
@@ -475,11 +481,19 @@ export class ProfilesService {
       family: {
         fatherOccupation: target.family.fatherOccupation ?? null,
         motherOccupation: target.family.motherOccupation ?? null,
-        siblings: target.family.siblings ?? null,
+        brothers: target.family.brothers ?? null,
+        sisters: target.family.sisters ?? null,
         familyType:
           (target.family.familyType as 'JOINT' | 'NUCLEAR' | undefined) ?? null,
+        familyStatus: target.family.familyStatus ?? null,
         nativePlace: target.family.nativePlace ?? null,
       },
+      lifestyle: {
+        smoking: target.lifestyle?.smoking ?? null,
+        drinking: target.lifestyle?.drinking ?? null,
+      },
+      hobbies: target.hobbies ?? [],
+      personalInterests: target.personalInterests ?? [],
       // Birth time and place never leave the server.
       horoscope: {
         nakshatra: target.horoscope.nakshatra ?? null,
@@ -658,11 +672,19 @@ export class ProfilesService {
       family: {
         fatherOccupation: profile.family.fatherOccupation ?? null,
         motherOccupation: profile.family.motherOccupation ?? null,
-        siblings: profile.family.siblings ?? null,
+        brothers: profile.family.brothers ?? null,
+        sisters: profile.family.sisters ?? null,
         familyType:
           (profile.family.familyType as 'JOINT' | 'NUCLEAR' | undefined) ?? null,
+        familyStatus: profile.family.familyStatus ?? null,
         nativePlace: profile.family.nativePlace ?? null,
       },
+      lifestyle: {
+        smoking: profile.lifestyle?.smoking ?? null,
+        drinking: profile.lifestyle?.drinking ?? null,
+      },
+      hobbies: profile.hobbies ?? [],
+      personalInterests: profile.personalInterests ?? [],
       horoscope: {
         birthTime: profile.horoscope.birthTime ?? null,
         birthPlace: profile.horoscope.birthPlace ?? null,

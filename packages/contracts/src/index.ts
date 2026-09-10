@@ -10,6 +10,7 @@
  * ESM requires explicit file extensions on relative specifiers.
  */
 export * from './enums.js';
+export * from './estimates.js';
 export * from './common.js';
 export * from './communities.js';
 export * from './auth.js';

@@ -20,6 +20,8 @@ import {
 } from '@eventhub/contracts';
 
 import { GuestApi, unwrapGuest } from '../data/guest-api';
+import { VendorCard } from '../components/vendor-card';
+import { ComparePanel } from '../components/compare-panel';
 import { AuthApi } from '../../auth/data/auth-api';
 import { AuthStore } from '../../auth/data/auth.store';
 import type { AppError } from '../../../core/models/app-error';
@@ -42,7 +44,7 @@ type Step = 'pick' | 'details' | 'code';
 @Component({
   selector: 'eh-guest-enquiry-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, MatButtonModule, MatProgressBarModule],
+  imports: [RouterLink, MatButtonModule, MatProgressBarModule, VendorCard, ComparePanel],
   template: `
     <main class="wrap">
       <header class="head">
@@ -96,6 +98,55 @@ type Step = 'pick' | 'details' | 'code';
               (change)="date.set($any($event.target).value)"
             />
           </label>
+
+          <!--
+            Guests and budget were asked for on step two, after the vendors had
+            already been chosen. They belong here: without them a price list
+            cannot be turned into what this wedding would cost, which is the
+            only question the list is being read to answer.
+          -->
+          <label>
+            <span>Guests</span>
+            <input
+              type="number"
+              min="1"
+              [value]="guestCount()"
+              (input)="guestCount.set(+$any($event.target).value || 1)"
+            />
+          </label>
+
+          <label>
+            <span>Budget (₹, optional)</span>
+            <input
+              type="number"
+              min="0"
+              placeholder="500000"
+              [value]="budgetRupees() ?? ''"
+              (input)="onBudget($any($event.target).value)"
+            />
+          </label>
+
+          <label>
+            <span>Sort by</span>
+            <select [value]="sort()" (change)="sort.set($any($event.target).value)">
+              <option value="rating" [selected]="sort() === 'rating'">Rating</option>
+              <option value="price" [selected]="sort() === 'price'">Price</option>
+              <option value="response" [selected]="sort() === 'response'">Response time</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Minimum rating</span>
+            <select
+              [value]="minRating()"
+              (change)="minRating.set(+$any($event.target).value)"
+            >
+              <option [value]="0" [selected]="minRating() === 0">Any</option>
+              <option [value]="3" [selected]="minRating() === 3">3★ and up</option>
+              <option [value]="4" [selected]="minRating() === 4">4★ and up</option>
+              <option [value]="4.5" [selected]="minRating() === 4.5">4.5★ and up</option>
+            </select>
+          </label>
         </section>
 
         @if (!date()) {
@@ -110,61 +161,45 @@ type Step = 'pick' | 'details' | 'code';
               <strong>{{ selected().size }} selected</strong>
               <span class="muted"> · up to {{ maxVendors }}</span>
             </div>
-            <button mat-flat-button (click)="toDetails()">Continue</button>
+            <div class="trayActions">
+              @if (selected().size > 1) {
+                <button mat-button class="cmp" (click)="comparing.set(!comparing())">
+                  {{ comparing() ? 'Hide comparison' : 'Compare ' + selected().size }}
+                </button>
+              }
+              <button mat-flat-button (click)="toDetails()">Continue</button>
+            </div>
           </section>
         }
 
-        @for (vendor of results.value(); track vendor.id) {
-          <article class="card" [class.picked]="selected().has(vendor.id)">
-            @if (vendor.photos[0]; as cover) {
-              <img class="cover" [src]="cover.url" [alt]="vendor.businessName" />
-            }
-            <div class="row">
-              <div>
-                <h2>{{ vendor.businessName }}</h2>
-                <p class="meta">
-                  {{ label(vendor.category) }} · {{ vendor.city }}
-                  @if (vendor.kycStatus === 'VERIFIED') {
-                    <span class="verified" title="Identity and bank details verified">
-                      ✓ Verified
-                    </span>
-                  }
-                </p>
-              </div>
-              <div class="price">
-                @if (vendor.priceFrom) {
-                  <span class="from">from</span>
-                  <strong>{{ inr(vendor.priceFrom) }}</strong>
-                }
-              </div>
-            </div>
-
-            <p class="desc">{{ vendor.description }}</p>
-
-            <div class="stats">
-              <span>{{ vendor.rating || '—' }}★ ({{ vendor.reviewCount }})</span>
-              <span>{{ vendor.completedBookings }} bookings</span>
-              @if (vendor.medianResponseMins !== null) {
-                <span>replies in ~{{ responseLabel(vendor.medianResponseMins!) }}</span>
-              }
-            </div>
-
-            <button
-              mat-stroked-button
-              [disabled]="!selected().has(vendor.id) && selected().size >= maxVendors"
-              (click)="toggle(vendor)"
-            >
-              {{ selected().has(vendor.id) ? 'Remove' : 'Add to enquiry' }}
-            </button>
-          </article>
-        } @empty {
-          @if (!results.isLoading()) {
-            <section class="empty">
-              <h2>Nothing free on that date</h2>
-              <p>Try another date, a nearby city, or a different category.</p>
-            </section>
-          }
+        @if (comparing() && selected().size > 1) {
+          <eh-compare-panel
+            [vendors]="chosen()"
+            [guestCount]="guestCount()"
+            [budget]="budgetPaisa()"
+            (closed)="comparing.set(false)"
+          />
         }
+
+<div class="results">
+          @for (vendor of results.value(); track vendor.id) {
+            <eh-vendor-card
+              [vendor]="vendor"
+              [guestCount]="guestCount()"
+              [budget]="budgetPaisa()"
+              [picked]="selected().has(vendor.id)"
+              [disabled]="!selected().has(vendor.id) && selected().size >= maxVendors"
+              (toggled)="toggle(vendor)"
+            />
+          } @empty {
+            @if (!results.isLoading()) {
+              <section class="empty">
+                <h2>Nothing free on that date</h2>
+                <p>Try another date, a nearby city, or a different category.</p>
+              </section>
+            }
+          }
+        </div>
       }
 
       @if (step() === 'details') {
@@ -213,26 +248,14 @@ type Step = 'pick' | 'details' | 'code';
               </select>
             </label>
 
-            <label>
-              <span>Guests</span>
-              <input
-                type="number"
-                min="1"
-                [value]="guestCount()"
-                (input)="guestCount.set(+$any($event.target).value)"
-              />
-            </label>
-
-            <label>
-              <span>Budget (₹, optional)</span>
-              <input
-                type="number"
-                min="0"
-                placeholder="500000"
-                [value]="budgetRupees() ?? ''"
-                (input)="onBudget($any($event.target).value)"
-              />
-            </label>
+            <!-- A read-back of what was chosen on step one, not a form field. -->
+            <div class="wide readback">
+              <span class="cap">Your wedding</span>
+              <p>
+                {{ weddingSummary() }}
+                <button mat-button type="button" (click)="step.set('pick')">Change</button>
+              </p>
+            </div>
 
             <label class="wide">
               <span>Anything they should know (optional)</span>
@@ -289,7 +312,11 @@ type Step = 'pick' | 'details' | 'code';
     </main>
   `,
   styles: `
-    .wrap { max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    /* Two across once there is room: choosing between vendors means seeing
+       more than one of them at a time. */
+    .results { display: grid; gap: 1rem;
+               grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); }
+    .wrap { max-width: 68rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
     .head h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
@@ -346,6 +373,9 @@ type Step = 'pick' | 'details' | 'code';
     .dev { margin: 0; font-size: 0.85rem; color: #8a5a00;
            background: #fbf1dc; border-left: 3px solid #c98a16;
            padding: 0.5rem 0.7rem; border-radius: 0 6px 6px 0; }
+    .readback .cap { font-size: 0.72rem; text-transform: uppercase;
+                     letter-spacing: 0.05em; color: rgb(0 0 0 / 0.55); }
+    .readback p { margin: 0.25rem 0 0; font-size: 0.92rem; }
     .err { color: #b3261e; font-size: 0.9rem; margin: 0; }
     .alt { font-size: 0.9rem; text-align: center; margin: 0.5rem 0 0; color: rgb(0 0 0 / 0.6); }
     @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
@@ -371,6 +401,25 @@ export class GuestEnquiryPage {
   protected readonly city = signal('');
   protected readonly date = signal('');
   protected readonly selected = signal<Map<string, VendorSearchResult>>(new Map());
+  protected readonly sort = signal<'rating' | 'price' | 'response'>('rating');
+  protected readonly minRating = signal(0);
+  protected readonly comparing = signal(false);
+
+  /** The picked vendors, in the order they were picked. */
+  protected readonly chosen = computed(() => [...this.selected().values()]);
+
+  /** What step one settled, read back on step two. */
+  protected readonly weddingSummary = computed(() => {
+    const budget = this.budgetPaisa();
+    const money = budget ? `, budget ${this.inr(budget)}` : '';
+    return `${this.guestCount()} guests in ${this.city()}${money}.`;
+  });
+
+  /** Budget in paisa, which is what the estimate helpers work in. */
+  protected readonly budgetPaisa = computed(() => {
+    const rupees = this.budgetRupees();
+    return rupees ? toPaisa(rupees) : null;
+  });
 
   // Step 2 - the details a vendor needs in order to quote.
   protected readonly fullName = signal('');
@@ -396,7 +445,8 @@ export class GuestEnquiryPage {
         category: this.category(),
         city: this.city() || undefined,
         date: this.date() || undefined,
-        sort: 'rating',
+        sort: this.sort(),
+        minRating: this.minRating() || undefined,
       }),
     { parse: unwrapGuest<VendorSearchResult[]>, defaultValue: [] },
   );

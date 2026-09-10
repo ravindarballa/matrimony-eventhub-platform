@@ -314,9 +314,11 @@ type Step = 'pick' | 'details' | 'code';
   styles: `
     /* Two across once there is room: choosing between vendors means seeing
        more than one of them at a time. */
-    .results { display: grid; gap: 1rem;
-               grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); }
-    .wrap { max-width: 68rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    /* Tiles. align-items:start so an expanded one grows on its own rather
+       than stretching every tile in its row to match. */
+    .results { display: grid; gap: 1rem; align-items: start;
+               grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+    .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
     .head h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }

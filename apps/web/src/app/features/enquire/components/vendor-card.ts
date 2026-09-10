@@ -38,8 +38,13 @@ interface PricedPackage {
  *
  * "From ₹1,200" is the worst of it. That means one thing at 200 guests and
  * something else entirely at 600, and every family comparing five vendors was
- * doing that multiplication in their head five times. The card does it for them
+ * doing that multiplication in their head five times. The tile does it for them
  * and says how, because a number nobody can check is a number nobody trusts.
+ *
+ * A tile rather than a wide row, for the same reason the profile cards are:
+ * choosing means comparing, and comparing means seeing four at once instead of
+ * one and a half. Everything past the headline - the description, the packages,
+ * the inclusions - is behind Details, so the tile stays the size of a glance.
  */
 @Component({
   selector: 'eh-vendor-card',
@@ -74,25 +79,21 @@ interface PricedPackage {
       }
 
       <div class="body">
-        <header>
-          <div>
-            <h3>{{ vendor().businessName }}</h3>
-            <p class="meta">
-              {{ label(vendor().category) }} · {{ vendor().city }}
-              @if (vendor().kycStatus === 'VERIFIED') {
-                <span class="verified" title="Identity and bank details verified">✓ Verified</span>
-              }
-            </p>
-          </div>
+        <h3>
+          {{ vendor().businessName }}
+          @if (vendor().kycStatus === 'VERIFIED') {
+            <span class="verified" title="Identity and bank details verified">✓</span>
+          }
+        </h3>
 
-          <div class="rating" [title]="vendor().reviewCount + ' reviews'">
-            <span class="stars" [attr.aria-label]="vendor().rating + ' out of 5'">
-              {{ stars() }}
-            </span>
-            <span class="num">{{ vendor().rating || '—' }}</span>
+        <p class="meta">
+          <span class="rating" [title]="vendor().reviewCount + ' reviews'">
+            <span class="stars" aria-hidden="true">★</span>
+            <strong>{{ vendor().rating || '—' }}</strong>
             <span class="count">({{ vendor().reviewCount }})</span>
-          </div>
-        </header>
+          </span>
+          · {{ vendor().city }}
+        </p>
 
         <!--
           The headline number. An estimate, and labelled as one everywhere it
@@ -119,12 +120,9 @@ interface PricedPackage {
         }
 
         <div class="stats">
-          <span>{{ vendor().completedBookings }} weddings done</span>
+          <span>{{ vendor().completedBookings }} weddings</span>
           @if (vendor().medianResponseMins !== null) {
-            <span>replies in ~{{ responseLabel(vendor().medianResponseMins!) }}</span>
-          }
-          @if (packages().length) {
-            <span>{{ packages().length }} package{{ packages().length === 1 ? '' : 's' }}</span>
+            <span>~{{ responseLabel(vendor().medianResponseMins!) }} reply</span>
           }
         </div>
 
@@ -160,73 +158,80 @@ interface PricedPackage {
           <button mat-flat-button class="add" [disabled]="disabled()" (click)="toggled.emit()">
             {{ picked() ? 'Remove' : 'Add to enquiry' }}
           </button>
-          <button mat-button type="button" (click)="open.set(!open())">
-            {{ open() ? 'Less' : 'Packages & details' }}
+          <button mat-button type="button" class="more" (click)="open.set(!open())">
+            {{ open() ? 'Less' : detailsLabel() }}
           </button>
         </div>
       </div>
     </article>
   `,
   styles: `
-    .card { display: flex; flex-direction: column; border: 1px solid rgb(0 0 0 / 0.12);
-            border-radius: 12px; background: #fff; overflow: hidden; }
+    :host { display: block; height: 100%; }
+    .card { height: 100%; display: flex; flex-direction: column;
+            border: 1px solid rgb(0 0 0 / 0.12); border-radius: 12px; background: #fff;
+            overflow: hidden; transition: transform 120ms ease, box-shadow 120ms ease; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(0 0 0 / 0.1); }
     .card.picked { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }
 
+    /* 4:3 - a venue is a room, and a room photographs landscape. */
     .gallery { position: relative; background: rgb(0 0 0 / 0.05); }
-    .main { width: 100%; aspect-ratio: 16 / 7; object-fit: cover; display: block; }
-    .strip { position: absolute; left: 0.5rem; bottom: 0.5rem; display: flex; gap: 0.3rem; }
-    .thumb { width: 2.6rem; height: 2rem; padding: 0; border: 2px solid transparent;
-             border-radius: 4px; overflow: hidden; cursor: pointer; background: none; }
+    .main { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+    .strip { position: absolute; left: 0.4rem; bottom: 0.4rem; display: flex; gap: 0.25rem; }
+    .thumb { width: 1.9rem; height: 1.5rem; padding: 0; border: 2px solid rgb(255 255 255 / 0.6);
+             border-radius: 3px; overflow: hidden; cursor: pointer; background: none; }
     .thumb.on { border-color: #fff; }
     .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .caption { position: absolute; right: 0.5rem; bottom: 0.5rem; font-size: 0.7rem;
-               color: #fff; background: rgb(0 0 0 / 0.55); padding: 0.15rem 0.45rem;
-               border-radius: 4px; }
+    .caption { position: absolute; right: 0.4rem; bottom: 0.4rem; font-size: 0.65rem;
+               color: #fff; background: rgb(0 0 0 / 0.55); padding: 0.1rem 0.35rem;
+               border-radius: 3px; max-width: 60%; overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
 
-    .body { padding: 0.9rem 1.1rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-    header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
-    h3 { margin: 0; font-size: 1.05rem; font-weight: 600; }
-    .meta { margin: 0.15rem 0 0; font-size: 0.85rem; color: rgb(0 0 0 / 0.6); }
-    .verified { color: #1b5e20; font-weight: 700; margin-left: 0.35rem; }
-    .rating { text-align: right; white-space: nowrap; }
-    .stars { color: #e8a33d; letter-spacing: -1px; }
-    .num { font-weight: 700; margin-left: 0.25rem; }
-    .count { font-size: 0.78rem; color: rgb(0 0 0 / 0.5); }
+    .body { flex: 1; padding: 0.7rem 0.8rem 0.8rem; display: flex;
+            flex-direction: column; gap: 0.35rem; }
+    h3 { margin: 0; font-size: 0.98rem; font-weight: 600; line-height: 1.25;
+         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .verified { color: #1b5e20; }
+    .meta { margin: 0; font-size: 0.78rem; color: rgb(0 0 0 / 0.6); }
+    .stars { color: #e8a33d; }
+    .rating strong { color: rgb(0 0 0 / 0.8); }
+    .count { color: rgb(0 0 0 / 0.45); }
 
-    .estimate { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
-                padding: 0.5rem 0.6rem; border-radius: 8px; background: rgb(0 0 0 / 0.035); }
-    .estimate strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
-    .estimate .soft { font-size: 1.05rem; font-weight: 600; }
-    .approx, .for { font-size: 0.8rem; color: rgb(0 0 0 / 0.55); }
+    .estimate { display: flex; align-items: baseline; gap: 0.3rem; flex-wrap: wrap;
+                padding: 0.4rem 0.5rem; border-radius: 7px; background: rgb(0 0 0 / 0.035); }
+    .estimate strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+    .estimate .soft { font-size: 0.92rem; font-weight: 600; }
+    .approx, .for { font-size: 0.72rem; color: rgb(0 0 0 / 0.55); }
     .fit-WITHIN { background: #e8f5e9; }
     .fit-TIGHT { background: #fff6e0; }
     .fit-OVER { background: #fdeceb; }
-    .chip { margin-left: auto; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem;
-            border-radius: 999px; }
-    .chip.ok { background: #c8e6c9; color: #1b5e20; }
-    .chip.warn { background: #ffe0a3; color: #8a5a00; }
-    .chip.over { background: #f8c9c5; color: #b3261e; }
-    .basis { margin: 0; font-size: 0.76rem; color: rgb(0 0 0 / 0.5); }
-    .capacity { margin: 0; font-size: 0.82rem; color: #1b5e20; }
+    .chip { width: 100%; font-size: 0.68rem; font-weight: 700; }
+    .chip.ok { color: #1b5e20; }
+    .chip.warn { color: #8a5a00; }
+    .chip.over { color: #b3261e; }
+    .basis { margin: 0; font-size: 0.71rem; color: rgb(0 0 0 / 0.5); }
+    .capacity { margin: 0; font-size: 0.76rem; color: #1b5e20; }
     .capacity.bad { color: #b3261e; font-weight: 600; }
 
-    .stats { display: flex; gap: 0.9rem; flex-wrap: wrap; font-size: 0.78rem;
+    .stats { display: flex; gap: 0.7rem; flex-wrap: wrap; font-size: 0.73rem;
              color: rgb(0 0 0 / 0.55); }
-    .desc { margin: 0.2rem 0 0; font-size: 0.87rem; color: rgb(0 0 0 / 0.75); line-height: 1.5; }
+    .desc { margin: 0.2rem 0 0; font-size: 0.83rem; color: rgb(0 0 0 / 0.75); line-height: 1.5; }
 
     .packages { list-style: none; margin: 0.2rem 0 0; padding: 0; display: flex;
-                flex-direction: column; gap: 0.6rem; }
-    .packages li { border-top: 1px solid rgb(0 0 0 / 0.08); padding-top: 0.55rem; }
+                flex-direction: column; gap: 0.5rem; }
+    .packages li { border-top: 1px solid rgb(0 0 0 / 0.08); padding-top: 0.45rem; }
     .packages li.unfit { opacity: 0.55; }
-    .pkgHead { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.92rem; }
+    .pkgHead { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.86rem; }
     .pkgPrice { font-variant-numeric: tabular-nums; font-weight: 600; }
-    .pkgBasis { margin: 0.1rem 0 0; font-size: 0.75rem; color: rgb(0 0 0 / 0.5); }
+    .pkgBasis { margin: 0.1rem 0 0; font-size: 0.72rem; color: rgb(0 0 0 / 0.5); }
     .pkgBasis.bad { color: #b3261e; }
-    .incl { margin: 0.25rem 0 0; font-size: 0.78rem; color: rgb(0 0 0 / 0.6); }
+    .incl { margin: 0.2rem 0 0; font-size: 0.74rem; color: rgb(0 0 0 / 0.6); }
 
-    .actions { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.3rem; }
-    .add { background: #2f2d78 !important; color: #fff !important; font-weight: 600; }
+    .actions { display: flex; gap: 0.25rem; align-items: center;
+               margin-top: auto; padding-top: 0.6rem; }
+    .add { flex: 1; font-size: 0.8rem; background: #2f2d78 !important;
+           color: #fff !important; font-weight: 600; }
     .add[disabled] { background: rgb(0 0 0 / 0.12) !important; color: rgb(0 0 0 / 0.38) !important; }
+    .more { font-size: 0.76rem; min-width: 0; padding: 0 0.5rem; }
   `,
 })
 export class VendorCard {
@@ -302,6 +307,11 @@ export class VendorCard {
     return largest >= guests
       ? { text: `Seats up to ${largest} — room for your ${guests}`, tooSmall: false }
       : { text: `Largest space seats ${largest}, and you have ${guests}`, tooSmall: true };
+  });
+
+  protected readonly detailsLabel = computed(() => {
+    const n = this.packages().length;
+    return n ? `${n} package${n === 1 ? '' : 's'}` : 'Details';
   });
 
   protected readonly stars = computed(() => {

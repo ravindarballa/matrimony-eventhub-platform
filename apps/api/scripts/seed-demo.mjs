@@ -18,7 +18,7 @@
  *
  * Photos are generated rather than shipped: the upload path checks magic
  * bytes and the browser has to render them, but a folder of stock photographs
- * committed to make a demo look nice is a poor trade. Flat colour blocks are
+ * committed to make a demo look nice is a poor trade. Flat color blocks are
  * enough to prove a gallery, a cover photo and the moderation queue all work.
  *
  *   npm run seed              accounts, vendors, galleries, profiles
@@ -104,8 +104,8 @@ function resetMedia() {
 }
 
 /** Writes one generated image where the media endpoint will find it. */
-function storeImage(prefix, colour, { width = 640, height = 360, render = solidPng } = {}) {
-  return storeBytes(prefix, render(width, height, colour), 'png');
+function storeImage(prefix, color, { width = 640, height = 360, render = solidPng } = {}) {
+  return storeBytes(prefix, render(width, height, color), 'png');
 }
 
 /** Puts finished bytes in the store under a random key of the given type. */
@@ -192,7 +192,7 @@ function nextPublicPerson(gender) {
  * then a drawn silhouette. Each step degrades rather than breaks, so emptying
  * any of these folders changes how the demo looks and never fails the seed.
  */
-function buildPhotos(gender, photoColour, photoModeration) {
+function buildPhotos(gender, photocolor, photoModeration) {
   const person = nextPublicPerson(gender);
   if (person) {
     return person.map((url, i) => ({
@@ -207,7 +207,7 @@ function buildPhotos(gender, photoColour, photoModeration) {
 
   const stored =
     storeFace(gender) ??
-    storeImage('profile-photos', photoColour, {
+    storeImage('profile-photos', photocolor, {
       width: 480,
       height: 600,
       render: (w, h, c) => portraitPng(w, h, c, gender === 'FEMALE'),

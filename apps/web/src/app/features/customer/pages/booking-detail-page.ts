@@ -221,7 +221,7 @@ import type { AppError } from '../../../core/models/app-error';
   styles: `
     .wrap { max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1.1rem; }
-    .back { font-size: 0.85rem; color: #2f2d78; text-decoration: none; }
+    .back { font-size: 0.85rem; color: var(--brand); text-decoration: none; }
     .back:hover { text-decoration: underline; }
     .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
@@ -240,7 +240,7 @@ import type { AppError } from '../../../core/models/app-error';
          color: rgb(0 0 0 / 0.5); }
     dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
     .meter { height: 6px; border-radius: 999px; background: #eceff1; overflow: hidden; }
-    .meter span { display: block; height: 100%; background: #2f2d78; }
+    .meter span { display: block; height: 100%; background: var(--brand); }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th { text-align: left; font-size: 0.7rem; text-transform: uppercase;
          letter-spacing: 0.05em; color: rgb(0 0 0 / 0.5); font-weight: 700;
@@ -252,7 +252,7 @@ import type { AppError } from '../../../core/models/app-error';
     .timeline { list-style: none; margin: 0; padding: 0;
                 display: flex; flex-direction: column; gap: 0.7rem; }
     .timeline li { display: flex; gap: 0.7rem; align-items: flex-start; font-size: 0.88rem; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: #2f2d78;
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand);
            margin-top: 0.35rem; flex: none; }
     .when { color: rgb(0 0 0 / 0.5); margin-left: 0.5rem; font-size: 0.8rem; }
     .why { margin: 0.15rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.85rem; }

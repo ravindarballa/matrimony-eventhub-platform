@@ -131,16 +131,16 @@ type Phase = 'browsing' | 'opening' | 'ready' | 'paying' | 'done' | 'failed';
     .sub { margin: 0.3rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; max-width: 40rem; }
     .current { background: #e6f4ea; border: 1px solid #c8e6c9; color: #1b5e20;
                border-radius: 10px; padding: 0.9rem 1.1rem; font-size: 0.9rem; }
-    .current.free { background: #eef1fb; border-color: #cfd6f2; color: #2f2d78; }
+    .current.free { background: #eef1fb; border-color: #cfd6f2; color: var(--brand); }
     .grid { display: grid; gap: 1rem;
             grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
     .plan { position: relative; background: #fff; border: 1px solid rgb(0 0 0 / 0.12);
             border-radius: 12px; padding: 1.4rem 1.25rem;
             display: flex; flex-direction: column; gap: 0.4rem; }
-    .plan.best { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }
+    .plan.best { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
     .badge { position: absolute; top: -0.6rem; left: 1.1rem; font-size: 0.62rem;
              font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-             background: #2f2d78; color: #fff; border-radius: 999px;
+             background: var(--brand); color: #fff; border-radius: 999px;
              padding: 0.2rem 0.55rem; }
     .plan h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
     .price { margin: 0.2rem 0 0; font-size: 1.8rem; font-weight: 700;

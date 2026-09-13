@@ -8,6 +8,7 @@ import { InterestsService } from './services/interests.service.js';
 import { RelationsService } from './services/relations.service.js';
 import { GunaService } from './services/guna.service.js';
 import { ChatService } from './services/chat.service.js';
+import { DashboardService } from './services/dashboard.service.js';
 import {
   MatrimonyProfile,
   MatrimonyProfileSchema,
@@ -65,6 +66,7 @@ import { MediaModule } from '../media/media.module.js';
     RelationsService,
     GunaService,
     ChatService,
+    DashboardService,
   ],
   exports: [ProfilesService, GunaService],
 })

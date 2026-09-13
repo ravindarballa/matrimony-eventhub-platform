@@ -23,6 +23,7 @@ export class MatrimonyApi {
 
   readonly base = '/api/v1/matrimony';
 
+  readonly dashboardUrl = `${this.base}/dashboard`;
   readonly meUrl = `${this.base}/profile/me`;
   readonly interestsUrl = `${this.base}/interests`;
   readonly quotaUrl = `${this.base}/interests/quota`;

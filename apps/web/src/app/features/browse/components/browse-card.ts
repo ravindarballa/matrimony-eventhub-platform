@@ -23,6 +23,12 @@ import {
  * "from ₹850". A per-plate figure means one thing at 200 guests and something
  * else at 600, and every family comparing five caterers was doing that
  * multiplication in their head five times.
+ *
+ * The anatomy follows the marketplace reference: the rating rides on the
+ * photograph as a pill rather than sitting in a line of text underneath. On a
+ * grid of twelve cards the rating is what the eye is actually scanning for, and
+ * as body text it has to be found twelve times. The photo is also where a
+ * family's attention already is.
  */
 @Component({
   selector: 'eh-browse-card',
@@ -36,6 +42,22 @@ import {
         } @else {
           <span class="noshot" aria-hidden="true">📷</span>
         }
+
+        @if (vendor().reviewCount > 0) {
+          <span
+            class="rating"
+            [attr.aria-label]="
+              vendor().rating + ' out of 5, ' + vendor().reviewCount + ' reviews'
+            "
+          >
+            <span class="star" aria-hidden="true">★</span>
+            <strong>{{ vendor().rating }}</strong>
+            <span class="of">({{ vendor().reviewCount }})</span>
+          </span>
+        } @else {
+          <span class="rating new">New</span>
+        }
+
         @if (vendor().photos && vendor().photos!.length > 1) {
           <span class="shots">{{ vendor().photos!.length }} photos</span>
         }
@@ -46,17 +68,7 @@ import {
 
       <div class="body">
         <h3>{{ vendor().businessName }}</h3>
-
-        <p class="meta">
-          @if (vendor().reviewCount > 0) {
-            <span class="stars" aria-hidden="true">★</span>
-            <strong>{{ vendor().rating }}</strong>
-            <span class="soft">({{ vendor().reviewCount }})</span>
-          } @else {
-            <span class="soft">No reviews yet</span>
-          }
-          <span class="soft">· {{ vendor().city }}</span>
-        </p>
+        <p class="where">{{ vendor().city }}</p>
 
         <p class="price">
           @if (estimate().total !== null) {
@@ -99,27 +111,39 @@ import {
                 font-weight: 700; color: #1b5e20; background: rgb(255 255 255 / 0.94);
                 border-radius: 3px; padding: 0.1rem 0.35rem; }
 
+    /* The rating pill sits on the photograph, bottom-left, which is where a
+       grid of cards is scanned. Flex with a gap rather than spaces in the
+       template: Angular strips whitespace-only text nodes, so "4.2(4)" is what
+       would actually render. */
+    .rating { position: absolute; left: 0.45rem; bottom: 0.45rem; display: flex;
+              align-items: baseline; gap: 0.22rem; font-size: 0.74rem;
+              padding: 0.2rem 0.45rem; border-radius: 999px;
+              background: rgb(255 255 255 / 0.95); color: var(--brand-deep);
+              box-shadow: 0 2px 6px rgb(0 0 0 / 0.22); }
+    .rating strong { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .rating .star { color: var(--star); font-size: 0.8rem; }
+    .rating .of { color: rgb(0 0 0 / 0.5); font-size: 0.68rem; }
+    .rating.new { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em;
+                  color: rgb(0 0 0 / 0.6); }
+
     .body { flex: 1; padding: 0.7rem 0.8rem 0.85rem; display: flex;
-            flex-direction: column; gap: 0.3rem; }
+            flex-direction: column; gap: 0.15rem; }
     h3 { margin: 0; font-size: 0.97rem; font-weight: 600; line-height: 1.25;
-         color: #23214f; overflow: hidden; text-overflow: ellipsis;
+         color: var(--brand-deep); overflow: hidden; text-overflow: ellipsis;
          white-space: nowrap; }
-    /* Flex with a gap, not spaces in the template: Angular strips
-       whitespace-only text nodes, so "4.2(4)" is what actually renders. */
-    .meta { margin: 0; font-size: 0.78rem; display: flex; align-items: baseline;
-            gap: 0.25rem; flex-wrap: wrap; }
-    .stars { color: #e8a33d; }
+    .where { margin: 0; font-size: 0.77rem; color: rgb(0 0 0 / 0.5);
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .soft { color: rgb(0 0 0 / 0.5); }
-    .price { margin: 0.15rem 0 0; font-size: 0.8rem; display: flex;
+    .price { margin: 0.35rem 0 0; font-size: 0.8rem; display: flex;
              align-items: baseline; gap: 0.3rem; flex-wrap: wrap; }
-    .price strong { font-size: 1rem; color: #23214f; font-variant-numeric: tabular-nums; }
+    .price strong { font-size: 1rem; color: var(--brand-deep); font-variant-numeric: tabular-nums; }
     .seats { margin: 0; font-size: 0.75rem; color: #1b5e20; }
     .seats.bad { color: #b3261e; }
 
     /* Two lines, so a long review cannot stagger the grid. */
     .quote { margin: 0.35rem 0 0; padding-left: 0.5rem; font-size: 0.76rem;
              line-height: 1.45; color: rgb(0 0 0 / 0.6);
-             border-left: 2px solid rgb(232 163 61 / 0.7);
+             border-left: 2px solid rgb(var(--star-rgb) / 0.7);
              display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
              -webkit-box-orient: vertical; overflow: hidden; }
   `,

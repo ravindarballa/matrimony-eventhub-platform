@@ -10,13 +10,80 @@ html {
   @include mat.theme(
     (
       color: (
-        primary: mat.$azure-palette,
-        tertiary: mat.$blue-palette,
+        primary: mat.$rose-palette,
+        tertiary: mat.$yellow-palette,
       ),
       typography: Roboto,
       density: 0,
     )
   );
+}
+
+/**
+ * The brand palette, in one place.
+ *
+ * Every screen used to carry its own hex codes - indigo on the portals, maroon
+ * on matrimony, magenta on the marketplace - which meant a change of brand was
+ * a change to forty files, and that is exactly how the three palettes drifted
+ * apart in the first place. Components now reference these tokens, so the next
+ * change is this block alone.
+ *
+ * Custom properties defined on :root cross Angular's emulated encapsulation,
+ * so a component style can use them without importing anything.
+ *
+ * Status colours are deliberately NOT in here. An error is red and a success is
+ * green in every product on earth, and repainting them in the brand colour
+ * would cost a user the one signal they read without thinking.
+ */
+:root {
+  /*
+   * Kumkum maroon, haldi gold, ivory silk - the palette an Indian wedding
+   * actually uses, rather than a single hue applied everywhere.
+   *
+   * The balance matters as much as the hue. A saturated brand colour across the
+   * utility strip, the brand bar AND a full-bleed hero leaves the eye nowhere to
+   * rest, which is what made the orange read as muddy no matter how it was
+   * tuned. Deep colour is now confined to the chrome, the page ground is warm
+   * ivory, and gold appears only as a thin accent - which is also why a wedding
+   * invitation in these colours looks expensive and a wall of orange does not.
+   */
+  --brand: #8e1537; // primary actions, bars, links
+  --brand-light: #b3244d; // the lighter end of a gradient, hovers
+  --brand-deep: #5e0d24; // the deep end, and dark headings
+  --brand-ink: #6b1029; // brand-coloured text on a light ground
+  --brand-tint: #fdf3f5; // pale wash panels
+  --brand-line: #f0d9df; // hairlines on a tinted panel
+  --brand-on: #ffffff; // text sitting on --brand
+  --gold: #c9a227; // haldi gold, for accents only
+  --star: #d9a520; // rating stars, which stay gold by convention
+  --ground: #fffaf4; // the warm ivory the pages sit on
+
+  /*
+   * The height of the shared masthead: the thin utility strip plus the brand
+   * bar, measured at 105px. It is a token because anything that wants to hang
+   * off the bottom of the masthead has to agree with it, and a second copy of
+   * the number inside a component is a seam waiting to open the next time the
+   * bar gains a row. Keep it in step with eh-wedding-masthead.
+   *
+   * 6.5rem is 104px - one pixel short, deliberately. A cord that starts a pixel
+   * inside the bar reads as attached to it; one that starts a pixel below reads
+   * as floating, and that gap is visible at the top of the stroke.
+   */
+  --masthead-h: 6.5rem;
+
+  /* Triplets, for the places that need an alpha over a photograph. */
+  --brand-rgb: 142 21 55;
+  --brand-deep-rgb: 94 13 36;
+  --star-rgb: 217 165 32;
+
+  /*
+   * The photo scrim is deliberately a warm near-neutral, NOT the brand colour.
+   * Tinting an unknown photograph in the brand hue was the real fault in the
+   * orange: an orange banquet hall under an orange scrim collapses into one
+   * flat field. A neutral darkens for legibility and lets the photograph keep
+   * its own colour, which is the whole reason it is there.
+   */
+  --scrim-rgb: 38 24 28;
 }
 
 body {
@@ -28,7 +95,10 @@ body {
   // Set a default background, font and text colors for the application using
   // Angular Material's system-level CSS variables. Learn more about these
   // variables at https://material.angular.dev/guide/system-variables
-  background-color: var(--mat-sys-surface);
+  // Warm ivory rather than Material's near-white: it is the ground every
+  // screen sits on, and it is most of what makes the palette read as a wedding
+  // rather than as a dashboard.
+  background-color: var(--ground);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
 

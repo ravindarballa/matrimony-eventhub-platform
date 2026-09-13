@@ -115,7 +115,7 @@ const MONTHS = [
     .cell .num { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
     .cell .tag { font-size: 0.55rem; font-weight: 700; text-transform: uppercase;
                  letter-spacing: 0.04em; }
-    .cell.free:hover:not(:disabled) { border-color: #2f2d78; background: #f2f1fb; }
+    .cell.free:hover:not(:disabled) { border-color: var(--brand); background: #f2f1fb; }
     .cell.blocked { background: #eceff1; color: #37474f; border-color: #cfd8dc; }
     .cell.held { background: #fbf1dc; color: #8a5a00; border-color: #f2dcae; }
     .cell.booked { background: #e6f4ea; color: #1b5e20; border-color: #c8e6c9; }

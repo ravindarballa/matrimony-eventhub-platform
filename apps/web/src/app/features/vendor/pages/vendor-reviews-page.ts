@@ -189,7 +189,7 @@ const NO_SUMMARY: RatingSummary = {
 
     .headline { display: flex; align-items: baseline; gap: 0.5rem; }
     .big { font-size: 2rem; font-variant-numeric: tabular-nums; line-height: 1; }
-    .stars { color: #e8a33d; letter-spacing: 0.05em; }
+    .stars { color: var(--star); letter-spacing: 0.05em; }
     .count { font-size: 0.78rem; color: rgb(0 0 0 / 0.55); }
 
     .histogram { list-style: none; margin: 0.7rem 0 0; padding: 0; display: flex;
@@ -197,7 +197,7 @@ const NO_SUMMARY: RatingSummary = {
     .histogram li { display: grid; grid-template-columns: 2rem 1fr 2rem; align-items: center;
                     gap: 0.5rem; font-size: 0.74rem; color: rgb(0 0 0 / 0.6); }
     .bar { height: 0.5rem; border-radius: 3px; background: rgb(0 0 0 / 0.08); overflow: hidden; }
-    .fill { display: block; height: 100%; background: #e8a33d; }
+    .fill { display: block; height: 100%; background: var(--star); }
     .histogram .n { text-align: right; font-variant-numeric: tabular-nums; }
 
     .aspects { list-style: none; margin: 0.8rem 0 0; padding: 0.6rem 0 0;
@@ -226,10 +226,10 @@ const NO_SUMMARY: RatingSummary = {
     .scores li { font-size: 0.71rem; color: rgb(0 0 0 / 0.6); background: rgb(0 0 0 / 0.05);
                  border-radius: 3px; padding: 0.1rem 0.4rem; }
 
-    .reply { margin: 0.7rem 0 0; padding: 0.5rem 0.7rem; border-left: 3px solid #2f2d78;
-             background: rgb(47 45 120 / 0.04); font-size: 0.83rem; line-height: 1.5;
+    .reply { margin: 0.7rem 0 0; padding: 0.5rem 0.7rem; border-left: 3px solid var(--brand);
+             background: rgb(var(--brand-rgb) / 0.04); font-size: 0.83rem; line-height: 1.5;
              color: rgb(0 0 0 / 0.75); }
-    .who { display: block; font-weight: 600; font-size: 0.72rem; color: #2f2d78;
+    .who { display: block; font-weight: 600; font-size: 0.72rem; color: var(--brand);
            margin-bottom: 0.15rem; }
 
     .answer { margin-top: 0.5rem; font-size: 0.8rem; }
@@ -237,9 +237,9 @@ const NO_SUMMARY: RatingSummary = {
     .composer textarea { font: inherit; font-size: 0.86rem; padding: 0.5rem 0.6rem;
                          border: 1px solid rgb(0 0 0 / 0.24); border-radius: 7px;
                          resize: vertical; }
-    .composer textarea:focus { outline: 2px solid #2f2d78; outline-offset: -1px; }
+    .composer textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
     .actions { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-    .send { background: #2f2d78 !important; color: #fff !important; font-weight: 600; }
+    .send { background: var(--brand) !important; color: #fff !important; font-weight: 600; }
     .send[disabled] { background: rgb(0 0 0 / 0.12) !important; color: rgb(0 0 0 / 0.38) !important; }
     .warn { font-size: 0.72rem; color: rgb(0 0 0 / 0.5); }
     .err { margin: 0; font-size: 0.8rem; color: #b3261e; }

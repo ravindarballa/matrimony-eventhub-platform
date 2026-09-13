@@ -197,7 +197,7 @@ import type { AppError } from '../../../core/models/app-error';
   styles: `
     .wrap { max-width: 46rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
-    .back { font-size: 0.85rem; color: #2f2d78; text-decoration: none; }
+    .back { font-size: 0.85rem; color: var(--brand); text-decoration: none; }
     .back:hover { text-decoration: underline; }
     .identity { display: flex; gap: 1.25rem; align-items: flex-start; }
     .photo { width: 9rem; height: 11rem; object-fit: cover; border-radius: 10px;

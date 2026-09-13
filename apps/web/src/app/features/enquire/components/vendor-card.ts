@@ -201,7 +201,7 @@ interface PricedPackage {
             border: 1px solid rgb(0 0 0 / 0.12); border-radius: 12px; background: #fff;
             overflow: hidden; transition: transform 120ms ease, box-shadow 120ms ease; }
     .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(0 0 0 / 0.1); }
-    .card.picked { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }
+    .card.picked { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
 
     /* 4:3 - a venue is a room, and a room photographs landscape. */
     .gallery { position: relative; background: rgb(0 0 0 / 0.05); }
@@ -222,7 +222,7 @@ interface PricedPackage {
          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .verified { color: #1b5e20; }
     .meta { margin: 0; font-size: 0.78rem; color: rgb(0 0 0 / 0.6); }
-    .stars { color: #e8a33d; }
+    .stars { color: var(--star); }
     .rating { font: inherit; color: inherit; background: none; border: 0; padding: 0;
               cursor: pointer; text-decoration: underline; text-decoration-color:
               rgb(0 0 0 / 0.25); text-underline-offset: 2px; }
@@ -251,10 +251,10 @@ interface PricedPackage {
 
     .quote { display: flex; flex-direction: column; gap: 0.1rem; width: 100%;
              text-align: left; font: inherit; cursor: pointer; padding: 0.45rem 0.55rem;
-             border: 0; border-left: 3px solid #e8a33d; border-radius: 0 6px 6px 0;
-             background: rgb(232 163 61 / 0.09); }
-    .quote:hover { background: rgb(232 163 61 / 0.16); }
-    .qstars { color: #e8a33d; font-size: 0.78rem; letter-spacing: 0.04em; }
+             border: 0; border-left: 3px solid var(--star); border-radius: 0 6px 6px 0;
+             background: rgb(var(--star-rgb) / 0.09); }
+    .quote:hover { background: rgb(var(--star-rgb) / 0.16); }
+    .qstars { color: var(--star); font-size: 0.78rem; letter-spacing: 0.04em; }
     .qtitle { font-size: 0.79rem; font-weight: 600; color: rgb(0 0 0 / 0.8);
               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* Three lines: enough to be a sentence, not enough to be the whole card. */
@@ -276,7 +276,7 @@ interface PricedPackage {
 
     .actions { display: flex; gap: 0.25rem; align-items: center;
                margin-top: auto; padding-top: 0.6rem; }
-    .add { flex: 1; font-size: 0.8rem; background: #2f2d78 !important;
+    .add { flex: 1; font-size: 0.8rem; background: var(--brand) !important;
            color: #fff !important; font-weight: 600; }
     .add[disabled] { background: rgb(0 0 0 / 0.12) !important; color: rgb(0 0 0 / 0.38) !important; }
     .more { font-size: 0.76rem; min-width: 0; padding: 0 0.5rem; }

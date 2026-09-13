@@ -5,6 +5,7 @@ import {
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { FormField, form, submit } from '@angular/forms/signals';
@@ -15,11 +16,13 @@ import {
   minLength,
   required,
   schema,
+  validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
@@ -27,18 +30,22 @@ import {
   FamilyStatus,
   Gender,
   HabitFrequency,
+  MAX_ACHIEVEMENTS,
+  MAX_ACHIEVEMENT_LENGTH,
   MAX_HOBBIES,
   MAX_PERSONAL_INTERESTS,
   MIN_AGE_BY_GENDER,
   type Paisa,
   RELIGIONS,
   communitiesFor,
+  dateOfBirthError,
   MaritalStatus,
   NAKSHATRAS,
   PhotoPrivacy,
   ProfileManagedBy,
   RASHIS,
   type MatrimonyProfileDto,
+  type UpsertProfileRequest,
 } from '@eventhub/contracts';
 
 import { MatrimonyApi, unwrap } from '../data/matrimony-api';
@@ -67,6 +74,7 @@ interface ProfileModel {
   occupation: string;
   employer: string;
   annualIncomeLakhs: number | null;
+  yearsOfExperience: number | null;
   fatherOccupation: string;
   motherOccupation: string;
   brothers: number | null;
@@ -91,9 +99,42 @@ const profileSchema = schema<ProfileModel>((p) => {
 
   required(p.dateOfBirth, { message: 'Date of birth is required' });
 
+  /*
+   * The whole date-of-birth rule, borrowed from contracts so the form and the
+   * server reject the same dates for the same stated reason.
+   *
+   * It has to be a cross-field validator rather than a bound min/max: the floor
+   * is 21 for a groom and 18 for a bride, so the limit depends on a field this
+   * one does not own. Reading gender through valueOf means switching the gender
+   * selector re-runs the check rather than leaving a date that was valid under
+   * the old answer.
+   */
+  validate(p.dateOfBirth, ({ value, valueOf }) => {
+    const dob = value();
+    if (!dob) return null; // `required` already speaks to the empty case.
+    const message = dateOfBirthError(dob, valueOf(p.gender));
+    return message ? { kind: 'dateOfBirth', message } : null;
+  });
+
   required(p.heightCm, { message: 'Height is required' });
   min(p.heightCm, 120, { message: 'Enter height in centimetres' });
   max(p.heightCm, 250, { message: 'Enter height in centimetres' });
+
+  // Bounds live in the schema rather than on the input: a formField-bound
+  // control is not allowed to carry its own min/max attributes.
+  min(p.yearsOfExperience, 0, { message: 'Years cannot be negative' });
+  max(p.yearsOfExperience, 60, { message: 'That is more than a working life' });
+
+  // Income is entered in lakhs, so the ceiling is what stops a figure typed in
+  // rupees landing as a salary of ten crore and skewing every band on the site.
+  min(p.annualIncomeLakhs, 0, { message: 'Income cannot be negative' });
+  max(p.annualIncomeLakhs, 10000, { message: 'Enter the amount in lakhs' });
+
+  // Sibling counts, matched to the bounds the API already enforces.
+  min(p.brothers, 0, { message: 'Cannot be negative' });
+  max(p.brothers, 20, { message: 'Check this number' });
+  min(p.sisters, 0, { message: 'Cannot be negative' });
+  max(p.sisters, 20, { message: 'Check this number' });
 
   required(p.religion, { message: 'Religion is required' });
   required(p.community, { message: 'Community is required' });
@@ -117,6 +158,7 @@ const empty = (): ProfileModel => ({
   institution: '',
   employer: '',
   annualIncomeLakhs: null,
+  yearsOfExperience: null,
   motherOccupation: '',
   brothers: null,
   sisters: null,
@@ -162,6 +204,7 @@ const empty = (): ProfileModel => ({
     MatProgressBarModule,
     MatSelectModule,
     MatAutocompleteModule,
+    MatStepperModule,
   ],
   template: `
     <main class="wrap">
@@ -202,7 +245,9 @@ const empty = (): ProfileModel => ({
       <form class="card" (submit)="$event.preventDefault(); save()">
         @if (busy()) { <mat-progress-bar mode="indeterminate" /> }
 
-        <h2>Basics</h2>
+        <mat-stepper [linear]="false" orientation="horizontal" class="stepper">
+<mat-step label="Basics">
+          <section class="stepBody">
 
         <mat-form-field appearance="outline">
           <mat-label>Name shown to matches</mat-label>
@@ -274,7 +319,25 @@ const empty = (): ProfileModel => ({
           </label>
         </div>
 
-        <h2>Community</h2>
+
+          <footer class="stepnav">
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="continueFrom(0)"
+            >Save and continue</button>
+
+            @if (stepNote(); as n) {
+              <span class="stepnote" role="status">{{ n }}</span>
+            }
+          </footer>
+
+        </section>
+        </mat-step>
+
+        <mat-step label="Community">
+          <section class="stepBody">
 
         <div class="pair">
           <mat-form-field appearance="outline">
@@ -327,7 +390,31 @@ const empty = (): ProfileModel => ({
           </mat-form-field>
         </div>
 
-        <h2>Education, career and family</h2>
+
+          <footer class="stepnav">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="busy()"
+              (click)="back()"
+            >Back</button>
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="continueFrom(1)"
+            >Save and continue</button>
+
+            @if (stepNote(); as n) {
+              <span class="stepnote" role="status">{{ n }}</span>
+            }
+          </footer>
+
+        </section>
+        </mat-step>
+
+        <mat-step label="Career">
+          <section class="stepBody">
 
         <div class="pair">
           <mat-form-field appearance="outline">
@@ -370,6 +457,31 @@ const empty = (): ProfileModel => ({
             <mat-hint>Shown to others as a band, never as an exact figure</mat-hint>
           </mat-form-field>
         </div>
+
+        <mat-form-field appearance="outline" class="half">
+          <mat-label>Years of experience</mat-label>
+          <input matInput type="number" [formField]="f.yearsOfExperience" />
+        </mat-form-field>
+
+        <!--
+          Optional, and worth completeness rather than being required. A profile
+          that names verifiable specifics is a different proposition from one
+          that names none - but demanding them just teaches people to invent one.
+        -->
+        <h3>Achievements</h3>
+        <p class="hint">
+          A promotion, a degree, a business you built. Shown only once interest
+          is mutual, alongside your contact details — this is what a family asks
+          about once the two of you are actually talking.
+        </p>
+        <eh-tag-input
+          label="Achievements"
+          [tags]="achievements()"
+          [max]="maxAchievements"
+          [maxLength]="maxAchievementLength"
+          placeholder="Led the payments team at a 200-person company"
+          (tagsChange)="achievements.set($event)"
+        />
 
         <h3>Family</h3>
 
@@ -473,7 +585,31 @@ const empty = (): ProfileModel => ({
           <mat-hint>At least 50 characters counts towards completeness</mat-hint>
         </mat-form-field>
 
-        <h2>Horoscope</h2>
+
+          <footer class="stepnav">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="busy()"
+              (click)="back()"
+            >Back</button>
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="continueFrom(2)"
+            >Save and continue</button>
+
+            @if (stepNote(); as n) {
+              <span class="stepnote" role="status">{{ n }}</span>
+            }
+          </footer>
+
+        </section>
+        </mat-step>
+
+        <mat-step label="Horoscope">
+          <section class="stepBody">
         <p class="hint">
           Enter what your family's kundli says. These two values are what the
           36-guna score is calculated from; your birth time and place are never
@@ -530,7 +666,31 @@ const empty = (): ProfileModel => ({
           (changed)="onPhotosChanged($event)"
         />
 
-        <h2>Privacy</h2>
+
+          <footer class="stepnav">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="busy()"
+              (click)="back()"
+            >Back</button>
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="continueFrom(3)"
+            >Save and continue</button>
+
+            @if (stepNote(); as n) {
+              <span class="stepnote" role="status">{{ n }}</span>
+            }
+          </footer>
+
+        </section>
+        </mat-step>
+
+        <mat-step label="Privacy">
+          <section class="stepBody">
         <label class="native">
           <span>Who can see your photos</span>
           <select
@@ -544,15 +704,41 @@ const empty = (): ProfileModel => ({
           </select>
         </label>
 
-        @if (error(); as e) { <p class="err" role="alert">{{ e }}</p> }
-        @if (saved()) { <p class="ok" role="status">Saved.</p> }
 
-        <button mat-flat-button type="submit" [disabled]="busy()">Save profile</button>
+          <footer class="stepnav">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="busy()"
+              (click)="back()"
+            >Back</button>
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="busy()"
+              (click)="continueFrom(4)"
+            >Save and finish</button>
+
+            @if (stepNote(); as n) {
+              <span class="stepnote" role="status">{{ n }}</span>
+            }
+          </footer>
+
+        </section>
+        </mat-step>
+      </mat-stepper>
+
+        @if (error(); as e) { <p class="err" role="alert">{{ e }}</p> }
+        @if (blockedBy(); as b) {
+          <p class="err" role="alert">
+            Nothing was saved - {{ b }} still needs attention.
+          </p>
+        }
       </form>
     </main>
   `,
   styles: `
-    .wrap { max-width: 44rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    .wrap { max-width: 50rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1.25rem; }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
@@ -568,12 +754,31 @@ const empty = (): ProfileModel => ({
     .muted { color: rgb(0 0 0 / 0.55); font-size: 0.8rem; }
     .meter { width: 100%; height: 8px; border-radius: 999px; background: #eceff1;
              overflow: hidden; }
-    .meter span { display: block; height: 100%; background: #2f2d78; }
+    .meter span { display: block; height: 100%; background: var(--brand); }
     .card { display: flex; flex-direction: column; gap: 0.3rem; background: #fff;
             border: 1px solid rgb(0 0 0 / 0.12); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { margin: 0.8rem 0 0.6rem; font-size: 0.72rem; font-weight: 700;
-               letter-spacing: 0.06em; text-transform: uppercase; color: rgb(0 0 0 / 0.55); }
-    .card h2:first-child { margin-top: 0; }
+
+    /*
+     * The same stepper the registration flow uses, so creating a profile and
+     * editing one look like the same job - which they are.
+     *
+     * Deliberately NOT linear, which is the one place this departs from
+     * registration. Registration is a first run with an order; editing is
+     * "change the one thing I came to change", and making somebody page through
+     * Basics and Community to reach their horoscope would be worse than the long
+     * form it replaced. Non-linear makes every step header a direct link.
+     */
+    .stepper { margin: -0.5rem -0.5rem 0; }
+    /* Each step's own controls, at the foot of that step rather than pinned.
+       The steps are short, and a fixed bar covers the very field being
+       corrected on a phone. */
+    .stepnav { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+               margin-top: 1.1rem; padding-top: 0.9rem;
+               border-top: 1px solid var(--brand-line); }
+    .stepnote { font-size: 0.82rem; color: rgb(0 0 0 / 0.62); }
+
+    .stepBody { padding: 0.6rem 0.2rem 0.2rem; display: flex;
+                flex-direction: column; gap: 0.3rem; }
     .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     @media (max-width: 560px) { .pair { grid-template-columns: 1fr; } }
     .native { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.7rem;
@@ -595,6 +800,8 @@ export class MatrimonyProfileEditPage {
   protected readonly familyStatuses = Object.values(FamilyStatus);
   protected readonly habits = Object.values(HabitFrequency);
   protected readonly maxHobbies = MAX_HOBBIES;
+  protected readonly maxAchievements = MAX_ACHIEVEMENTS;
+  protected readonly maxAchievementLength = MAX_ACHIEVEMENT_LENGTH;
   protected readonly maxInterests = MAX_PERSONAL_INTERESTS;
 
   /**
@@ -603,6 +810,7 @@ export class MatrimonyProfileEditPage {
    * profile loads and read back on save.
    */
   protected readonly hobbies = signal<string[]>([]);
+  protected readonly achievements = signal<string[]>([]);
   protected readonly personalInterests = signal<string[]>([]);
 
 
@@ -632,6 +840,9 @@ export class MatrimonyProfileEditPage {
   protected readonly model = signal<ProfileModel>(empty());
   protected readonly f = form(this.model, profileSchema);
 
+  /** Needed because continue saves before it advances, so the move is ours. */
+  private readonly stepper = viewChild(MatStepper);
+
   protected readonly busy = signal(false);
   protected readonly saved = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -659,6 +870,7 @@ export class MatrimonyProfileEditPage {
       if (!p) return;
 
       this.hobbies.set([...(p.hobbies ?? [])]);
+      this.achievements.set([...(p.career.achievements ?? [])]);
       this.personalInterests.set([...(p.personalInterests ?? [])]);
       this.model.set({
         displayName: p.displayName,
@@ -683,6 +895,8 @@ export class MatrimonyProfileEditPage {
         // Stored in paisa, edited in lakhs.
         annualIncomeLakhs:
           p.career.annualIncome != null ? p.career.annualIncome / 100 / 100_000 : null,
+        yearsOfExperience: p.career.yearsOfExperience ?? null,
+
         fatherOccupation: p.family.fatherOccupation ?? '',
         motherOccupation: p.family.motherOccupation ?? '',
         brothers: p.family.brothers ?? null,
@@ -713,80 +927,243 @@ export class MatrimonyProfileEditPage {
     this.model.update((m) => ({ ...m, [key]: raw === '' ? null : Number(raw) }));
   }
 
+  /**
+   * Which fields each step owns, so a step can be checked on its own.
+   *
+   * The stepper is not linear and the required fields are spread over the first
+   * two steps, so "is the form valid" is the wrong question to ask when
+   * somebody presses continue on step one - it would fail on a field they have
+   * not been shown yet. Each step is judged on what it actually contains.
+   */
+  private stepFields(index: number): { touch: () => void; bad: () => boolean }[] {
+    const g = [
+      [this.f.displayName, this.f.dateOfBirth, this.f.heightCm],
+      [this.f.religion, this.f.community, this.f.motherTongue, this.f.city],
+      [
+        this.f.annualIncomeLakhs,
+        this.f.yearsOfExperience,
+        this.f.brothers,
+        this.f.sisters,
+        this.f.about,
+      ],
+      [],
+      [],
+    ][index];
+
+    return (g ?? []).map((field) => ({
+      touch: () => field().markAsTouched(),
+      bad: () => field().errors().length > 0,
+    }));
+  }
+
+  /** The first step carrying an error, named, or null when they all pass. */
+  protected readonly blockedBy = signal<string | null>(null);
+
+  /** What the last continue actually did, shown beside the button. */
+  protected readonly stepNote = signal<string | null>(null);
+
+  private readonly stepNames = [
+    'Basics',
+    'Community',
+    'Career',
+    'Horoscope',
+    'Privacy',
+  ];
+
+  /**
+   * Everything the API insists on before it will accept a profile at all.
+   *
+   * The server rejects an upsert missing any of these, so pressing continue on
+   * step one of a brand new profile cannot save - community and city live on
+   * step two and have not been asked for yet. Rather than fire a request that
+   * is certain to 400, the step advances and the save happens at the first step
+   * where it can succeed.
+   */
+  private readonly persistable = computed(() => {
+    const m = this.model();
+    return Boolean(
+      m.displayName &&
+        m.dateOfBirth &&
+        m.heightCm &&
+        m.religion &&
+        m.community &&
+        m.motherTongue &&
+        m.city,
+    );
+  });
+
+  protected back(): void {
+    this.stepNote.set(null);
+    this.stepper()?.previous();
+  }
+
+  /**
+   * Validate this step, save what there is, then move on.
+   *
+   * Saving on the way out of each step is what makes a five-step form safe to
+   * leave: the alternative is one button at the end, where a closed tab on step
+   * four costs everything typed so far. The API merges sections rather than
+   * replacing the profile, which is what makes a partial save meaningful.
+   */
+  protected async continueFrom(index: number): Promise<void> {
+    this.error.set(null);
+    this.blockedBy.set(null);
+    this.stepNote.set(null);
+
+    // Touch first: an untouched field shows no error, so a step that fails
+    // silently is exactly the confusion this is meant to remove.
+    const fields = this.stepFields(index);
+    for (const f of fields) f.touch();
+    if (fields.some((f) => f.bad())) {
+      this.stepNote.set('Check the highlighted fields.');
+      return;
+    }
+
+    const last = index === this.stepNames.length - 1;
+
+    if (this.persistable()) {
+      const ok = await this.persist();
+      if (!ok) return; // persist() has already said why.
+      this.stepNote.set(last ? 'All changes saved.' : 'Saved.');
+    } else {
+      // Nothing the server would accept yet, and saying so is better than a
+      // silent advance that looks identical to a successful save.
+      this.stepNote.set('Not saved yet - the next step completes the basics.');
+    }
+
+    if (!last) this.stepper()?.next();
+  }
+
+  /**
+   * Sends the whole model. Returns whether it was accepted.
+   *
+   * Separated from the stepper so the save path has one implementation: a
+   * second copy would drift the moment a field moved between steps.
+   */
+  private async persist(): Promise<boolean> {
+    this.busy.set(true);
+    try {
+      await this.api.saveProfile(this.payload());
+      this.existing.reload();
+      this.saved.set(true);
+      return true;
+    } catch (e) {
+      const err = e as AppError;
+      this.error.set(
+        err.code === 'MAT_UNDERAGE'
+          ? `The legal minimum age to marry in India is ${this.minimumAge()}.`
+          : err.message,
+      );
+      return false;
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * The model as the API wants it, built once for every path that saves.
+   *
+   * Kept apart from the sending so the stepper and the explicit save cannot
+   * drift into sending subtly different profiles.
+   */
+  private payload(): UpsertProfileRequest {
+    const m = this.model();
+    return {
+      displayName: m.displayName,
+      managedBy: m.managedBy,
+      gender: m.gender,
+      dateOfBirth: new Date(m.dateOfBirth).toISOString(),
+      heightCm: Number(m.heightCm),
+      maritalStatus: m.maritalStatus,
+      religion: m.religion,
+      community: m.community,
+      gotra: m.gotra || undefined,
+      motherTongue: m.motherTongue,
+      city: m.city,
+      diet: m.diet,
+      about: m.about || undefined,
+      state: m.state || undefined,
+      education: {
+        highestQualification: m.highestQualification,
+        fieldOfStudy: m.fieldOfStudy || undefined,
+        institution: m.institution || undefined,
+      },
+      career: {
+        occupation: m.occupation,
+        employer: m.employer || undefined,
+        // Lakhs back to paisa. Undefined rather than 0 when it is blank -
+        // "not saying" and "nothing" are different answers.
+        annualIncome: (m.annualIncomeLakhs != null && m.annualIncomeLakhs !== ('' as never)
+            ? Math.round(Number(m.annualIncomeLakhs) * 100_000 * 100)
+            : undefined) as Paisa | undefined,
+        yearsOfExperience:
+          m.yearsOfExperience != null && (m.yearsOfExperience as unknown) !== ''
+            ? Number(m.yearsOfExperience)
+            : undefined,
+        achievements: this.achievements().length ? this.achievements() : undefined,
+      },
+      family: {
+        fatherOccupation: m.fatherOccupation,
+        motherOccupation: m.motherOccupation || undefined,
+        brothers: m.brothers != null ? Number(m.brothers) : undefined,
+        sisters: m.sisters != null ? Number(m.sisters) : undefined,
+        familyType: m.familyType || undefined,
+        familyStatus: m.familyStatus || undefined,
+        nativePlace: m.nativePlace,
+      },
+      lifestyle: {
+        smoking: m.smoking || undefined,
+        drinking: m.drinking || undefined,
+      },
+      hobbies: this.hobbies(),
+      personalInterests: this.personalInterests(),
+      horoscope: {
+        birthTime: m.birthTime || undefined,
+        birthPlace: m.birthPlace || undefined,
+        nakshatra: m.nakshatra ?? undefined,
+        rashi: m.rashi ?? undefined,
+        marsHouse: m.marsHouse ?? undefined,
+      },
+      privacy: { photos: m.photoPrivacy },
+    };
+  }
+
+  /**
+   * Save without moving, for the explicit action.
+   *
+   * `submit` runs its callback only when the whole form validates, and it does
+   * so silently when it does not - which is what made pressing Save look like
+   * nothing had happened when the empty field was on a step that was not open.
+   * The blocked case now names the step instead.
+   */
   protected save(): void {
     this.error.set(null);
+    this.blockedBy.set(null);
     this.saved.set(false);
 
+    const bad = this.firstIncompleteStep();
+    if (bad !== null) {
+      this.blockedBy.set(this.stepNames[bad] ?? 'An earlier step');
+      // Open the offending step. Naming it is not enough when the field that
+      // needs fixing is behind a tab the member is not looking at.
+      const stepper = this.stepper();
+      if (stepper) stepper.selectedIndex = bad;
+      return;
+    }
+
     void submit(this.f, async () => {
-      const m = this.model();
-      this.busy.set(true);
-      try {
-        await this.api.saveProfile({
-          displayName: m.displayName,
-          managedBy: m.managedBy,
-          gender: m.gender,
-          dateOfBirth: new Date(m.dateOfBirth).toISOString(),
-          heightCm: Number(m.heightCm),
-          maritalStatus: m.maritalStatus,
-          religion: m.religion,
-          community: m.community,
-          gotra: m.gotra || undefined,
-          motherTongue: m.motherTongue,
-          city: m.city,
-          diet: m.diet,
-          about: m.about || undefined,
-          state: m.state || undefined,
-          education: {
-            highestQualification: m.highestQualification,
-            fieldOfStudy: m.fieldOfStudy || undefined,
-            institution: m.institution || undefined,
-          },
-          career: {
-            occupation: m.occupation,
-            employer: m.employer || undefined,
-            // Lakhs back to paisa. Undefined rather than 0 when it is blank -
-            // "not saying" and "nothing" are different answers.
-            annualIncome: (m.annualIncomeLakhs != null && m.annualIncomeLakhs !== ('' as never)
-                ? Math.round(Number(m.annualIncomeLakhs) * 100_000 * 100)
-                : undefined) as Paisa | undefined,
-          },
-          family: {
-            fatherOccupation: m.fatherOccupation,
-            motherOccupation: m.motherOccupation || undefined,
-            brothers: m.brothers != null ? Number(m.brothers) : undefined,
-            sisters: m.sisters != null ? Number(m.sisters) : undefined,
-            familyType: m.familyType || undefined,
-            familyStatus: m.familyStatus || undefined,
-            nativePlace: m.nativePlace,
-          },
-          lifestyle: {
-            smoking: m.smoking || undefined,
-            drinking: m.drinking || undefined,
-          },
-          hobbies: this.hobbies(),
-          personalInterests: this.personalInterests(),
-          horoscope: {
-            birthTime: m.birthTime || undefined,
-            birthPlace: m.birthPlace || undefined,
-            nakshatra: m.nakshatra ?? undefined,
-            rashi: m.rashi ?? undefined,
-            marsHouse: m.marsHouse ?? undefined,
-          },
-          privacy: { photos: m.photoPrivacy },
-        });
-        this.existing.reload();
-        this.saved.set(true);
-      } catch (e) {
-        const err = e as AppError;
-        this.error.set(
-          err.code === 'MAT_UNDERAGE'
-            ? `The legal minimum age to marry in India is ${this.minimumAge()}.`
-            : err.message,
-        );
-      } finally {
-        this.busy.set(false);
-      }
+      await this.persist();
     });
+  }
+
+  /** The index of the first step with an error, or null when all of them pass. */
+  private firstIncompleteStep(): number | null {
+    for (let i = 0; i < this.stepNames.length; i++) {
+      const fields = this.stepFields(i);
+      for (const f of fields) f.touch();
+      if (fields.some((f) => f.bad())) return i;
+    }
+    return null;
   }
 
   protected async publish(): Promise<void> {

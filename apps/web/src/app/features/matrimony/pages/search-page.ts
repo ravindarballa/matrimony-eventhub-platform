@@ -6,6 +6,7 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { httpResource } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -24,6 +25,13 @@ import type { AppError } from '../../../core/models/app-error';
 /**
  * Faceted search.
  *
+ * Laid out to the matrimony reference this side of the product follows: a
+ * standing filter rail down the left, and results as wide rows beside it. The
+ * filters were a band across the top, which works while there are eight of them
+ * and stops working the moment there are twelve - and a family narrowing a
+ * search wants to see what they have already narrowed without scrolling back up
+ * past the results to check.
+ *
  * The filters live in the store rather than in this component, so opening a
  * profile and coming back does not throw away the ten minutes a family spent
  * narrowing them down.
@@ -31,7 +39,7 @@ import type { AppError } from '../../../core/models/app-error';
 @Component({
   selector: 'eh-matrimony-search-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProfileCard, MatButtonModule, MatProgressBarModule],
+  imports: [RouterLink, ProfileCard, MatButtonModule, MatProgressBarModule],
   template: `
     <main class="wrap">
       <header class="head">
@@ -48,7 +56,39 @@ import type { AppError } from '../../../core/models/app-error';
         }
       </header>
 
-      <section class="filters">
+      <!--
+        No profile, no search. The API refuses the query outright - it has no
+        gender, community or horoscope to match against - so the filters are a
+        rail for a search that cannot run. Showing them next to one red sentence
+        left three quarters of the page blank and read as a broken layout rather
+        than as the one thing the visitor has to do next.
+      -->
+      @if (needsProfile()) {
+        <section class="gate">
+          <h2>Create your profile to see matches</h2>
+          <p>
+            Matches are worked out against your own profile — the community,
+            mother tongue and horoscope on it are what decide who you are shown,
+            and whose search you appear in. It takes three short steps.
+          </p>
+          <div class="gateActions">
+            <a mat-flat-button class="go" routerLink="/matrimony/profile/edit">
+              Create my profile
+            </a>
+            <a mat-stroked-button routerLink="/">Back to home</a>
+          </div>
+          <p class="fine">
+            Already filled it in? It also has to be published before searching —
+            open it and choose <strong>Publish</strong>.
+          </p>
+        </section>
+      } @else {
+
+      <div class="layout">
+      <aside class="rail">
+        <h2 class="railhead">Refine</h2>
+
+        <section class="filters">
         <label>
           <span>Community</span>
           <!--
@@ -141,17 +181,6 @@ import type { AppError } from '../../../core/models/app-error';
           />
         </label>
 
-        <label>
-          <span>Sort by</span>
-          <select
-            [value]="store.filters().sort ?? 'recent'"
-            (change)="store.setFilter('sort', $any($event.target).value)"
-          >
-            <option value="recent">Recently active</option>
-            <option value="guna">Guna score</option>
-            <option value="age">Age</option>
-          </select>
-        </label>
       </section>
 
       <section class="gotra">
@@ -186,55 +215,123 @@ import type { AppError } from '../../../core/models/app-error';
             Profiles from these gotras are removed entirely, not just ranked lower.
           </p>
         }
-      </section>
+        </section>
+      </aside>
 
-      @if (results.isLoading()) { <mat-progress-bar mode="indeterminate" /> }
+      <section class="results">
+        <!--
+          Count on the left, sort on the right, directly above the rows. The
+          sort belongs here rather than in the rail: it does not narrow anything,
+          it reorders what is already on screen, and putting it among the filters
+          invited people to hunt for it there when they wanted fewer results.
+        -->
+        <div class="sortbar">
+          <p class="tally">
+            @if (results.isLoading()) {
+              Searching…
+            } @else {
+              <strong>{{ results.value().length }}</strong>
+              {{ results.value().length === 1 ? 'profile' : 'profiles' }}
+              @if (store.activeFilterCount()) { match your filters }
+            }
+          </p>
 
-      @if (results.error()) {
-        <p class="err" role="alert">
-          @if (needsProfile()) {
-            Create and publish your own profile before searching.
-          } @else {
-            Search could not be completed. Please try again.
-          }
-        </p>
-      }
+          <label class="sort">
+            <span>Sort by</span>
+            <select
+              [value]="store.filters().sort ?? 'recent'"
+              (change)="store.setFilter('sort', $any($event.target).value)"
+            >
+              <option value="recent">Recently active</option>
+              <option value="guna">Guna score</option>
+              <option value="age">Age</option>
+            </select>
+          </label>
+        </div>
 
-      @if (message(); as m) { <p class="notice" role="status">{{ m }}</p> }
+        @if (results.isLoading()) { <mat-progress-bar mode="indeterminate" /> }
 
-      <div class="tiles">
-        @for (profile of results.value(); track profile.id) {
-          <eh-profile-card
-            [profile]="profile"
-            (interested)="sendInterest($event)"
-            (shortlisted)="toggleShortlist(profile)"
-          />
-        } @empty {
-          @if (!results.isLoading() && !results.error()) {
-            <section class="empty">
-              <h2>No profiles match</h2>
-              <p>Widen the age band, or clear a filter or two.</p>
-            </section>
-          }
+        @if (results.error()) {
+          <p class="err" role="alert">Search could not be completed. Please try again.</p>
         }
+
+        @if (message(); as m) { <p class="notice" role="status">{{ m }}</p> }
+
+        <div class="rows">
+          @for (profile of results.value(); track profile.id) {
+            <eh-profile-card
+              [profile]="profile"
+              (interested)="sendInterest($event)"
+              (shortlisted)="toggleShortlist(profile)"
+            />
+          } @empty {
+            @if (!results.isLoading() && !results.error()) {
+              <section class="empty">
+                <h2>No profiles match</h2>
+                <p>Widen the age band, or clear a filter or two.</p>
+              </section>
+            }
+          }
+        </div>
+      </section>
       </div>
+      }
     </main>
   `,
   styles: `
-    /* Tiles, not rows. minmax keeps four across on a desktop and folds to
-       two on a tablet and one on a phone without a breakpoint for each. */
-    .tiles { display: grid; gap: 1rem;
-             grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
-    .tiles .empty, .tiles .notice { grid-column: 1 / -1; }
+    /* Rows, one per profile, in a single column beside the filter rail. */
+    .rows { display: flex; flex-direction: column; gap: 0.8rem; }
 
-    .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    .wrap { max-width: 78rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
-    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+
+    /* The rail is a fixed column and the results take the rest. It sticks,
+       because the whole point of a standing rail is that a family can change
+       one filter after scrolling through forty profiles without going back to
+       the top of the page to find it. */
+    .layout { display: grid; grid-template-columns: 15rem 1fr; gap: 1.25rem;
+              align-items: start; }
+    /*
+     * Sticky, but never its own scroll area. Capping the height at the viewport
+     * and setting overflow-y gave the rail an inner scrollbar that clipped the
+     * first filter off the top - two nested scrollbars on one page, and the
+     * control a family wanted hidden inside the inner one. Left to its natural
+     * height it simply scrolls with the page when it does not fit, which is what
+     * a filter rail should do.
+     */
+    /*
+     * The rail scrolls with the page. It is deliberately NOT sticky.
+     *
+     * Sticky looked right and was unusable: the filters are taller than a
+     * laptop viewport, and a pinned element taller than the screen can never be
+     * seen in full - scroll down and its top is cut off, scroll up and its
+     * bottom is. Measured at a 620px viewport the top 36px were unreachable at
+     * every scroll position.
+     *
+     * The fix before this one was to give the rail its own scrollbar, which
+     * traded an unreachable strip for two nested scrollbars and a first filter
+     * clipped mid-control. Letting it scroll with the results is the version
+     * with no failure mode: everything is reachable, and the page behaves the
+     * way the right-hand column already did.
+     */
+    .rail { display: flex; flex-direction: column; gap: 0.8rem; }
+    .railhead { margin: 0; font-size: 0.72rem; font-weight: 700;
+                letter-spacing: 0.09em; text-transform: uppercase;
+                color: rgb(0 0 0 / 0.42); }
+
+    .filters { display: flex; flex-direction: column;
                gap: 0.75rem; background: #fff; border: 1px solid rgb(0 0 0 / 0.12);
                border-radius: 10px; padding: 1rem; }
+
+    .results { min-width: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+    .sortbar { display: flex; align-items: center; justify-content: space-between;
+               gap: 1rem; flex-wrap: wrap; }
+    .tally { margin: 0; font-size: 0.88rem; color: rgb(0 0 0 / 0.6); }
+    .tally strong { color: var(--brand-deep); font-size: 1.05rem; }
+    .sort { flex-direction: row; align-items: center; gap: 0.5rem; }
     label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.7rem;
             text-transform: uppercase; letter-spacing: 0.05em; color: rgb(0 0 0 / 0.55); }
     input, select { font: inherit; font-size: 0.9rem; padding: 0.4rem 0.5rem;
@@ -242,8 +339,8 @@ import type { AppError } from '../../../core/models/app-error';
                     text-transform: none; letter-spacing: normal; color: rgb(0 0 0 / 0.87); }
     .gotra { background: #fff; border: 1px solid rgb(0 0 0 / 0.12); border-radius: 10px;
              padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
-    .gotra-input { display: flex; gap: 0.6rem; align-items: flex-end; }
-    .gotra-input label { flex: 1; max-width: 16rem; }
+    .gotra-input { display: flex; gap: 0.5rem; align-items: flex-end; }
+    .gotra-input label { flex: 1; min-width: 0; }
     .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; }
     .chips li { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;
                 background: #fdecea; color: #b3261e; border: 1px solid #f7ccc8;
@@ -254,9 +351,35 @@ import type { AppError } from '../../../core/models/app-error';
     .notice { margin: 0; font-size: 0.88rem; color: #0d47a1; background: #e3f2fd;
               border-left: 3px solid #0d47a1; padding: 0.6rem 0.8rem;
               border-radius: 0 6px 6px 0; }
-    .empty { text-align: center; padding: 3rem 1rem; color: rgb(0 0 0 / 0.6); }
+    .empty { text-align: center; padding: 3rem 1rem; color: rgb(0 0 0 / 0.6);
+             background: #fff; border: 1px solid rgb(0 0 0 / 0.12);
+             border-radius: 10px; }
     .empty h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
     .err { color: #b3261e; font-size: 0.9rem; }
+
+    /* The gate takes the whole width, because it is the whole page: there is
+       nothing else to do here until the profile exists. */
+    .gate { background: #fff; border: 1px solid rgb(0 0 0 / 0.12);
+            border-radius: 12px; padding: clamp(2rem, 5vw, 3.5rem);
+            text-align: center; display: flex; flex-direction: column;
+            align-items: center; gap: 0.9rem; }
+    .gate h2 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.7rem); color: var(--brand);
+               letter-spacing: -0.015em; }
+    .gate p { margin: 0; max-width: 54ch; line-height: 1.65; font-size: 0.95rem;
+              color: rgb(0 0 0 / 0.66); }
+    .gateActions { display: flex; flex-wrap: wrap; gap: 0.6rem;
+                   justify-content: center; margin-top: 0.4rem; }
+    .gate .go { background: var(--brand) !important; color: #fff !important;
+                font-weight: 700; }
+    .gate .fine { font-size: 0.83rem; color: rgb(0 0 0 / 0.5); }
+
+    /* The rail stops being a rail and becomes a block above the results. It is
+       not hidden: on a phone the filters are the only way through 200 profiles. */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .rail { max-height: none; overflow: visible; }
+      .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+    }
   `,
 })
 export class MatrimonySearchPage {
@@ -323,9 +446,16 @@ export class MatrimonySearchPage {
     { parse: unwrap<ProfileCardDto[]>, defaultValue: [] },
   );
 
+  /**
+   * The viewer has no profile, so the search was refused outright.
+   *
+   * Keyed on the code alone. It used to also treat any 'server' error as a
+   * missing profile, which meant a genuine 500 told the visitor to go and
+   * create a profile they already had - and sent them off to fix something that
+   * was never broken.
+   */
   protected needsProfile(): boolean {
-    const error = this.results.error() as AppError | undefined;
-    return error?.kind === 'server' || error?.code === 'VALIDATION_FAILED';
+    return (this.results.error() as AppError | undefined)?.code === 'VALIDATION_FAILED';
   }
 
   protected setNumber(key: 'ageMin' | 'ageMax' | 'minGunaScore', raw: string): void {

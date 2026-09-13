@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+  linkedSignal,
+  signal,
+} from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -44,12 +51,12 @@ type Tab = 'received' | 'sent' | 'accepted';
         @for (t of tabs; track t) {
           <button
             role="tab"
-            [attr.aria-selected]="tab() === t"
-            [class.on]="tab() === t"
-            (click)="tab.set(t)"
+            [attr.aria-selected]="activeTab() === t"
+            [class.on]="activeTab() === t"
+            (click)="activeTab.set(t)"
           >
             {{ label(t) }}
-            @if (tab() === t && interests.value().length) {
+            @if (activeTab() === t && interests.value().length) {
               <span class="count">{{ interests.value().length }}</span>
             }
           </button>
@@ -69,7 +76,7 @@ type Tab = 'received' | 'sent' | 'accepted';
             }
 
             <div class="actions">
-              @switch (tab()) {
+              @switch (activeTab()) {
                 @case ('received') {
                   <button mat-flat-button [disabled]="busy()" (click)="accept(interest)">
                     Accept and share numbers
@@ -107,10 +114,15 @@ type Tab = 'received' | 'sent' | 'accepted';
     </main>
   `,
   styles: `
-    /* Tiles, not rows. minmax keeps four across on a desktop and folds to
-       two on a tablet and one on a phone without a breakpoint for each. */
+    /*
+     * Tiles, not rows. 14rem here was the other half of the overlap bug: a
+     * profile card needs about 24rem before its three columns fit, so a 14rem
+     * track guaranteed the contents spilled over the neighbour. min() keeps the
+     * floor from exceeding the container on a phone, where a bare 30rem minimum
+     * would overflow the screen instead.
+     */
     .tiles { display: grid; gap: 1rem;
-             grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+             grid-template-columns: repeat(auto-fill, minmax(min(30rem, 100%), 1fr)); }
     .tiles .empty, .tiles .notice { grid-column: 1 / -1; }
 
     .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
@@ -122,8 +134,8 @@ type Tab = 'received' | 'sent' | 'accepted';
                    padding: 0.6rem 0.9rem; cursor: pointer; color: rgb(0 0 0 / 0.6);
                    border-bottom: 2px solid transparent; display: flex; gap: 0.4rem;
                    align-items: center; }
-    .tabs button.on { color: #2f2d78; border-bottom-color: #2f2d78; font-weight: 600; }
-    .count { font-size: 0.7rem; background: #2f2d78; color: #fff; border-radius: 999px;
+    .tabs button.on { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+    .count { font-size: 0.7rem; background: var(--brand); color: #fff; border-radius: 999px;
              padding: 0.05rem 0.4rem; }
     .row { display: flex; flex-direction: column; gap: 0.5rem; }
     .msg { margin: 0; font-size: 0.88rem; font-style: italic; color: rgb(0 0 0 / 0.7);
@@ -142,13 +154,28 @@ export class InterestsPage {
   private readonly api = inject(MatrimonyApi);
 
   protected readonly tabs: Tab[] = ['received', 'sent', 'accepted'];
-  protected readonly tab = signal<Tab>('received');
+
+  /**
+   * Bound from ?tab= by withComponentInputBinding, so the dashboard can link at
+   * one tab rather than at the page. An unrecognised value falls back rather
+   * than showing an empty list, because a hand-edited URL should not break.
+   */
+  readonly tab = input<string | undefined>(undefined);
+
+  /**
+   * linkedSignal, not computed: the tabs are still buttons. It follows the URL
+   * when the URL changes and stays writable for the click that does not.
+   */
+  protected readonly activeTab = linkedSignal<Tab>(() => {
+    const asked = this.tab() as Tab | undefined;
+    return asked && this.tabs.includes(asked) ? asked : 'received';
+  });
   protected readonly busy = signal(false);
   protected readonly message = signal<string | null>(null);
 
   /** Keyed on the tab signal, so switching tabs is the whole of "refetch". */
   protected readonly interests = httpResource<InterestDto[]>(
-    () => this.api.interestTabUrl(this.tab()),
+    () => this.api.interestTabUrl(this.activeTab()),
     { parse: unwrap<InterestDto[]>, defaultValue: [] },
   );
 
@@ -188,7 +215,7 @@ export class InterestsPage {
       received: 'No interests waiting',
       sent: 'You have not sent any interests',
       accepted: 'Nothing accepted yet',
-    }[this.tab()];
+    }[this.activeTab()];
   }
 
   protected emptyBody(): string {
@@ -196,7 +223,7 @@ export class InterestsPage {
       received: 'When someone is interested in your profile, it appears here.',
       sent: 'Find a match and send an interest to start a conversation.',
       accepted: 'Contact details are shared once both sides accept.',
-    }[this.tab()];
+    }[this.activeTab()];
   }
 
   protected readonly label = (value: string): string =>

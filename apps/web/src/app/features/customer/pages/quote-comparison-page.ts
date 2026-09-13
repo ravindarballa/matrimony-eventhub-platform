@@ -109,7 +109,7 @@ import type { AppError } from '../../../core/models/app-error';
   styles: `
     .wrap { max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
-    .back { font-size: 0.85rem; color: #2f2d78; text-decoration: none; }
+    .back { font-size: 0.85rem; color: var(--brand); text-decoration: none; }
     .back:hover { text-decoration: underline; }
     h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }

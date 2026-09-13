@@ -68,6 +68,21 @@ export class InterestsService {
         message: 'You cannot send an interest to yourself.',
       });
     }
+    /*
+     * Opposite gender only.
+     *
+     * Search has always filtered on this, but search is not the only way a
+     * profile id reaches this method - the id is in the URL of every profile
+     * page, and anything that can POST can post one. A rule enforced only
+     * where the UI happens to apply it is not enforced at all, which is how
+     * same-gender interests got into the database in the first place.
+     */
+    if (from.gender === to.gender) {
+      throw new ConflictException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'You can only send an interest to a profile of the opposite gender.',
+      });
+    }
     if (from.status !== ProfileStatus.ACTIVE) {
       throw new ConflictException({
         code: ErrorCode.VALIDATION_FAILED,
@@ -248,6 +263,15 @@ export class InterestsService {
 
     if (await this.relations.isBlocked(mine._id, target._id)) {
       throw new NotFoundException();
+    }
+    // Same rule as sending, for the same reason: a shortlist is the step
+    // before an interest, and letting one through that the other refuses
+    // just moves the contradiction one screen later.
+    if (mine.gender === target.gender) {
+      throw new ConflictException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'You can only shortlist a profile of the opposite gender.',
+      });
     }
     await this.relations.shortlist(mine._id, target._id, note);
   }

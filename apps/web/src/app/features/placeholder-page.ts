@@ -46,7 +46,7 @@ import { AuthStore } from './auth/data/auth.store';
     }
     .code {
       font-family: ui-monospace, monospace; font-size: 0.7rem; font-weight: 700;
-      letter-spacing: 0.06em; background: #2f2d78; color: #fff;
+      letter-spacing: 0.06em; background: var(--brand); color: #fff;
       padding: 0.25rem 0.5rem; border-radius: 4px;
     }
     h1 { margin: 0; font-size: 1.75rem; font-weight: 600; }

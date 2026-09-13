@@ -195,4 +195,65 @@ export class RelationsService {
   ): Promise<InterestDocument | null> {
     return this.interests.findOne({ fromProfileId: from, toProfileId: to });
   }
+
+  // -------------------------------------------------------------- dashboard
+
+  /**
+   * Every relation count for one profile, in three queries rather than seven.
+   *
+   * The interests are counted in a single aggregate grouped by direction and
+   * status, because the obvious alternative - one countDocuments per tile - is
+   * five round trips to fill one screen, and the dashboard is the screen most
+   * likely to be opened on a phone on a bad connection.
+   *
+   * `savedBy` counts the members who saved this profile and deliberately stops
+   * there. Who is quietly considering you is the one thing a shortlist keeps
+   * private, so the number is returned and the names never are.
+   */
+  async counts(profileId: Types.ObjectId): Promise<{
+    received: number;
+    awaitingReply: number;
+    accepted: number;
+    declined: number;
+    shortlistSaved: number;
+    shortlistSavedBy: number;
+  }> {
+    const [grouped, shortlistSaved, shortlistSavedBy] = await Promise.all([
+      this.interests.aggregate<{
+        _id: { outgoing: boolean; status: InterestStatus };
+        n: number;
+      }>([
+        {
+          $match: {
+            $or: [{ fromProfileId: profileId }, { toProfileId: profileId }],
+          },
+        },
+        {
+          $group: {
+            _id: {
+              outgoing: { $eq: ['$fromProfileId', profileId] },
+              status: '$status',
+            },
+            n: { $sum: 1 },
+          },
+        },
+      ]),
+      this.shortlists.countDocuments({ profileId }),
+      this.shortlists.countDocuments({ targetProfileId: profileId }),
+    ]);
+
+    const n = (outgoing: boolean, status: InterestStatus): number =>
+      grouped.find((r) => r._id.outgoing === outgoing && r._id.status === status)
+        ?.n ?? 0;
+
+    return {
+      received: n(false, InterestStatus.SENT),
+      awaitingReply: n(true, InterestStatus.SENT),
+      // Both directions: a match is a match whoever opened it.
+      accepted: n(true, InterestStatus.ACCEPTED) + n(false, InterestStatus.ACCEPTED),
+      declined: n(true, InterestStatus.DECLINED),
+      shortlistSaved,
+      shortlistSavedBy,
+    };
+  }
 }

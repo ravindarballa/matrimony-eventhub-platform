@@ -28,11 +28,11 @@ import { RouterOutlet } from '@angular/router';
       justify-content: center;
       gap: 1rem;
       padding: 3rem;
-      background: #2f2d78;
+      background: var(--brand);
       color: #fff;
     }
     .brand h1 { font-size: 2.25rem; margin: 0; font-weight: 600; letter-spacing: -0.02em; }
-    .brand h1 span { color: #e8b341; }
+    .brand h1 span { color: var(--star); }
     .brand p { max-width: 34ch; line-height: 1.6; opacity: 0.85; margin: 0; }
     .panel {
       display: flex;

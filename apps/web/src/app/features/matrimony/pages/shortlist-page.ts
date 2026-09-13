@@ -62,10 +62,15 @@ import type { AppError } from '../../../core/models/app-error';
     </main>
   `,
   styles: `
-    /* Tiles, not rows. minmax keeps four across on a desktop and folds to
-       two on a tablet and one on a phone without a breakpoint for each. */
+    /*
+     * Tiles, not rows. 14rem here was the other half of the overlap bug: a
+     * profile card needs about 24rem before its three columns fit, so a 14rem
+     * track guaranteed the contents spilled over the neighbour. min() keeps the
+     * floor from exceeding the container on a phone, where a bare 30rem minimum
+     * would overflow the screen instead.
+     */
     .tiles { display: grid; gap: 1rem;
-             grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+             grid-template-columns: repeat(auto-fill, minmax(min(30rem, 100%), 1fr)); }
     .tiles .empty, .tiles .notice { grid-column: 1 / -1; }
 
     .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;

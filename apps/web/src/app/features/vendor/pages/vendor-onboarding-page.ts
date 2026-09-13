@@ -97,11 +97,25 @@ const kycSchema = schema<KycModel>((p) => {
       }
 
       @if (!vendor.value()) {
-        <header>
-          <h1>List your business</h1>
-          <p class="sub">
-            This is what customers see in search. You can add packages and prices next.
-          </p>
+        <header class="band">
+          <div class="lede">
+            <h1>List your business</h1>
+            <p class="sub">
+              This is what customers see in search. You can add packages and
+              prices next.
+            </p>
+          </div>
+
+          <!--
+            Two steps, stated up front. A vendor asked for a PAN and a bank
+            account with no idea how much more is coming assumes the worst;
+            saying there are two and that listing comes first is the difference
+            between a form and a process.
+          -->
+          <ol class="steps">
+            <li class="on"><b>1</b> Listing</li>
+            <li><b>2</b> Verification</li>
+          </ol>
         </header>
 
         <form class="card" (submit)="$event.preventDefault(); createBusiness()">
@@ -148,11 +162,21 @@ const kycSchema = schema<KycModel>((p) => {
           </button>
         </form>
       } @else {
-        <header>
-          <h1>{{ vendor.value()!.businessName }}</h1>
-          <p class="sub">
-            {{ label(vendor.value()!.category) }} · {{ vendor.value()!.city }}
-          </p>
+        <header class="band">
+          <div class="lede">
+            <h1>{{ vendor.value()!.businessName }}</h1>
+            <p class="sub">
+              {{ label(vendor.value()!.category) }} · {{ vendor.value()!.city }}
+            </p>
+          </div>
+
+          <ol class="steps">
+            <li class="done"><b>✓</b> Listing</li>
+            <li [class]="vendor.value()!.kycStatus === 'VERIFIED' ? 'done' : 'on'">
+              <b>{{ vendor.value()!.kycStatus === 'VERIFIED' ? '✓' : '2' }}</b>
+              Verification
+            </li>
+          </ol>
         </header>
 
         @if (vendor.value()!.kycStatus === 'VERIFIED') {
@@ -231,21 +255,61 @@ const kycSchema = schema<KycModel>((p) => {
     </main>
   `,
   styles: `
-    .wrap { max-width: 40rem; margin: 2.5rem auto 4rem; padding: 0 1.25rem;
+    .wrap { max-width: 44rem; margin: 1.5rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1.25rem; }
-    h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
-    .sub { margin: 0.35rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
+
+    /* The same banded header the rest of the product uses, so the console does
+       not change character the moment a vendor opens the one screen that asks
+       them for bank details. */
+    .band { display: flex; align-items: center; justify-content: space-between;
+            gap: 1.25rem; flex-wrap: wrap;
+            padding: 1.1rem 1.35rem; border-radius: 14px;
+            background: linear-gradient(120deg, var(--brand-deep), var(--brand-light));
+            color: #fff;
+            box-shadow: 0 6px 20px rgb(var(--brand-deep-rgb) / 0.25); }
+    .lede { min-width: 0; }
+    h1 { margin: 0; font-size: 1.45rem; font-weight: 600; line-height: 1.2; }
+    .band .sub { margin: 0.3rem 0 0; color: rgb(255 255 255 / 0.85); font-size: 0.88rem; }
+
+    .steps { list-style: none; display: flex; align-items: center; gap: 0.5rem;
+             margin: 0; padding: 0; }
+    .steps li { display: flex; align-items: center; gap: 0.4rem;
+                font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+                padding: 0.3rem 0.7rem 0.3rem 0.35rem; border-radius: 999px;
+                background: rgb(255 255 255 / 0.14);
+                border: 1px solid rgb(255 255 255 / 0.25);
+                color: rgb(255 255 255 / 0.75); }
+    .steps b { display: grid; place-items: center; width: 1.25rem; height: 1.25rem;
+               border-radius: 50%; font-size: 0.7rem;
+               background: rgb(255 255 255 / 0.2); }
+    .steps li.on { color: #fff; border-color: var(--gold); }
+    .steps li.on b { background: var(--gold); color: #3a2606; }
+    .steps li.done { color: #fff; }
+    .steps li.done b { background: #1b5e20; color: #fff; }
+
     .card { display: flex; flex-direction: column; gap: 0.4rem; background: #fff;
-            border: 1px solid rgb(0 0 0 / 0.12); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { margin: 0 0 0.2rem; font-size: 1.05rem; font-weight: 600; }
+            border: 1px solid var(--brand-line); border-radius: 12px;
+            padding: 1.5rem; }
+    .card h2 { margin: 0 0 0.2rem; font-size: 0.8rem; font-weight: 700;
+               text-transform: uppercase; letter-spacing: 0.09em;
+               color: var(--brand-ink); }
+    .card .sub { margin: 0 0 0.9rem; color: rgb(0 0 0 / 0.6); font-size: 0.88rem; }
+
+    /* Verified is the one state worth colouring outside the palette: green is
+       what "cleared" means to anyone reading a compliance screen. */
     .card.done { border-color: #c8e6c9; background: #f6fbf7; }
     .card.done h2 { color: #1b5e20; }
+    .card.done p { margin: 0; font-size: 0.92rem; color: rgb(0 0 0 / 0.75); }
+
     .native { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.72rem;
               text-transform: uppercase; letter-spacing: 0.05em; color: rgb(0 0 0 / 0.55);
               margin-bottom: 0.9rem; }
     .native select { font: inherit; font-size: 0.95rem; padding: 0.7rem 0.6rem;
                      border: 1px solid rgb(0 0 0 / 0.38); border-radius: 4px;
-                     text-transform: none; letter-spacing: normal; color: rgb(0 0 0 / 0.87); }
+                     text-transform: none; letter-spacing: normal;
+                     color: rgb(0 0 0 / 0.87); background: #fff; }
+    .native select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+
     .rejected { margin: 0 0 0.5rem; font-size: 0.88rem; color: #b3261e;
                 background: #fdecea; border-left: 3px solid #b3261e;
                 padding: 0.6rem 0.8rem; border-radius: 0 6px 6px 0; }
@@ -254,6 +318,11 @@ const kycSchema = schema<KycModel>((p) => {
                padding: 0.6rem 0.8rem; border-radius: 0 6px 6px 0; }
     .err { color: #b3261e; font-size: 0.9rem; margin: 0 0 0.5rem; }
     button { align-self: flex-start; }
+
+    @media (max-width: 560px) {
+      .band { flex-direction: column; align-items: flex-start; }
+      .steps { flex-wrap: wrap; }
+    }
   `,
 })
 export class VendorOnboardingPage {

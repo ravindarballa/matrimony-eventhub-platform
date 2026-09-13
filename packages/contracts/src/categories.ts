@@ -24,14 +24,46 @@ export interface CategoryMeta {
   group: CategoryGroup;
 }
 
+/**
+ * How the nineteen categories are banded, for the browse page and the menu.
+ *
+ * These used to be named for the planning order - "The day itself", "How you
+ * look", "Keeping the day". That is how a planner thinks about a wedding, and
+ * it reads well on a page you are browsing. It is the wrong label on a menu:
+ * somebody who came for a photographer scans for the word "photography" and
+ * finds "Keeping the day", which means nothing until it is opened.
+ *
+ * The groups are now named for what is being bought. The trade is deliberate -
+ * a little of the editorial voice for a menu that can be scanned in one pass -
+ * and it is why Photography and Venues are groups of one rather than being
+ * tidied in with something else. They are the two categories people arrive
+ * already looking for, and a group of one that is instantly found beats a
+ * tidier grouping that is not.
+ */
 export const CategoryGroup = {
-  VENUE_AND_FOOD: 'The day itself',
-  LOOK: 'How you look',
-  MEMORIES: 'Keeping the day',
-  CEREMONY: 'Ceremony and celebration',
-  EVERYTHING_ELSE: 'Everything else',
+  VENUES: 'Venues',
+  PHOTOGRAPHY: 'Photography',
+  CATERING: 'Catering',
+  DECORATION: 'Decoration',
+  EVENTS: 'Events',
+  BOUTIQUE: 'Boutique',
+  SERVICES: 'Planning & services',
 } as const;
 export type CategoryGroup = (typeof CategoryGroup)[keyof typeof CategoryGroup];
+
+/**
+ * The handful a family books first, for the menu's "Most booked" column.
+ *
+ * Ordered by how early in the planning each one is decided rather than by
+ * volume: the venue fixes the date, and everything else is chosen around it.
+ */
+export const MOST_BOOKED: VendorCategory[] = [
+  VendorCategory.VENUE,
+  VendorCategory.PHOTOGRAPHY,
+  VendorCategory.CATERING,
+  VendorCategory.DECOR,
+  VendorCategory.MAKEUP,
+];
 
 export const CATEGORY_META: Record<VendorCategory, CategoryMeta> = {
   [VendorCategory.VENUE]: {
@@ -39,135 +71,153 @@ export const CATEGORY_META: Record<VendorCategory, CategoryMeta> = {
     plural: 'Venues',
     blurb: 'Banquet halls, lawns, palaces and resorts, with capacity and parking.',
     glyph: '🏛️',
-    group: CategoryGroup.VENUE_AND_FOOD,
+    group: CategoryGroup.VENUES,
   },
   [VendorCategory.CATERING]: {
     label: 'Caterer',
     plural: 'Caterers',
     blurb: 'Veg, non-veg, Jain and regional menus, priced by the plate.',
     glyph: '🍛',
-    group: CategoryGroup.VENUE_AND_FOOD,
+    group: CategoryGroup.CATERING,
   },
   [VendorCategory.CAKE]: {
     label: 'Cake designer',
     plural: 'Cakes and desserts',
     blurb: 'Tiered cakes, dessert tables and eggless options.',
     glyph: '🎂',
-    group: CategoryGroup.VENUE_AND_FOOD,
+    group: CategoryGroup.CATERING,
   },
   [VendorCategory.MAKEUP]: {
     label: 'Makeup artist',
     plural: 'Makeup and hair',
     blurb: 'Bridal makeup, hair and draping, at the venue or at home.',
     glyph: '💄',
-    group: CategoryGroup.LOOK,
+    group: CategoryGroup.BOUTIQUE,
   },
   [VendorCategory.MEHENDI]: {
     label: 'Mehendi artist',
     plural: 'Mehendi artists',
     blurb: 'Bridal and guest mehendi — Rajasthani, Arabic and minimal styles.',
     glyph: '🌿',
-    group: CategoryGroup.LOOK,
+    group: CategoryGroup.EVENTS,
   },
   [VendorCategory.BRIDAL_WEAR]: {
     label: 'Bridal wear',
     plural: 'Bridal wear',
     blurb: 'Lehengas, sarees and gowns to buy or rent, with fittings.',
     glyph: '👰',
-    group: CategoryGroup.LOOK,
+    group: CategoryGroup.BOUTIQUE,
   },
   [VendorCategory.GROOM_WEAR]: {
     label: "Groom's wear",
     plural: "Groom's wear",
     blurb: 'Sherwanis, bandhgalas, suits and safas, tailored or off the rack.',
     glyph: '🤵',
-    group: CategoryGroup.LOOK,
+    group: CategoryGroup.BOUTIQUE,
   },
   [VendorCategory.JEWELLERY]: {
     label: 'Jeweller',
     plural: 'Jewellery',
     blurb: 'Bridal sets in gold, polki and kundan, to buy or on rent.',
     glyph: '💍',
-    group: CategoryGroup.LOOK,
+    group: CategoryGroup.BOUTIQUE,
   },
   [VendorCategory.PHOTOGRAPHY]: {
     label: 'Photographer',
     plural: 'Photo and video',
     blurb: 'Candid photography, cinematic films, pre-wedding shoots and drones.',
     glyph: '📷',
-    group: CategoryGroup.MEMORIES,
+    group: CategoryGroup.PHOTOGRAPHY,
   },
   [VendorCategory.INVITATION]: {
     label: 'Invitations',
     plural: 'Invitations',
     blurb: 'Printed cards, boxed invites and digital save-the-dates.',
     glyph: '💌',
-    group: CategoryGroup.MEMORIES,
+    group: CategoryGroup.DECORATION,
   },
   [VendorCategory.GIFTS]: {
     label: 'Trousseau and favours',
     plural: 'Trousseau and favours',
     blurb: 'Return gifts, hampers, trousseau packing and welcome bags.',
     glyph: '🎁',
-    group: CategoryGroup.MEMORIES,
+    group: CategoryGroup.SERVICES,
   },
   [VendorCategory.DECOR]: {
     label: 'Decorator',
     plural: 'Decor and flowers',
     blurb: 'Mandap, stage, entrance and table settings, fresh or artificial.',
     glyph: '🌸',
-    group: CategoryGroup.CEREMONY,
+    group: CategoryGroup.DECORATION,
   },
   [VendorCategory.PANDIT]: {
     label: 'Pandit',
     plural: 'Pandits and priests',
     blurb: 'Ceremonies by tradition and language, with the samagri arranged.',
     glyph: '🕉️',
-    group: CategoryGroup.CEREMONY,
+    group: CategoryGroup.SERVICES,
   },
   [VendorCategory.MUSIC]: {
     label: 'DJ or band',
     plural: 'Music and DJs',
     blurb: 'DJs, live bands, shehnai and sound systems with lighting.',
     glyph: '🎧',
-    group: CategoryGroup.CEREMONY,
+    group: CategoryGroup.EVENTS,
   },
   [VendorCategory.CHOREOGRAPHY]: {
     label: 'Choreographer',
     plural: 'Sangeet choreographers',
     blurb: 'Sangeet routines for the families, rehearsed over a few weeks.',
     glyph: '💃',
-    group: CategoryGroup.CEREMONY,
+    group: CategoryGroup.EVENTS,
   },
   [VendorCategory.ENTERTAINMENT]: {
     label: 'Entertainment',
     plural: 'Baraat and entertainment',
     blurb: 'Dhol, baraat horses, anchors, magicians and firework alternatives.',
     glyph: '🥁',
-    group: CategoryGroup.CEREMONY,
+    group: CategoryGroup.EVENTS,
   },
   [VendorCategory.PLANNER]: {
     label: 'Wedding planner',
     plural: 'Wedding planners',
     blurb: 'Full planning or day-of coordination, when you would rather not.',
     glyph: '📋',
-    group: CategoryGroup.EVERYTHING_ELSE,
+    group: CategoryGroup.SERVICES,
   },
   [VendorCategory.TRANSPORT]: {
     label: 'Transport',
     plural: 'Transport',
     blurb: 'Guest coaches, vintage cars for the couple and airport pickups.',
     glyph: '🚗',
-    group: CategoryGroup.EVERYTHING_ELSE,
+    group: CategoryGroup.SERVICES,
   },
   [VendorCategory.HONEYMOON]: {
     label: 'Honeymoon',
     plural: 'Honeymoon',
     blurb: 'Packages and visas, once the last guest has finally gone home.',
     glyph: '✈️',
-    group: CategoryGroup.EVERYTHING_ELSE,
+    group: CategoryGroup.SERVICES,
   },
 };
+
+/**
+ * One category as the browse grid draws it.
+ *
+ * The count was here first, because a tile that promises vendors and opens onto
+ * an empty page is a lie. The photograph and the price are the same argument
+ * carried further: a family choosing a category is choosing what to look at,
+ * and a wall of identical labels gives them nothing to choose with. Both are
+ * nullable because a brand-new category legitimately has neither.
+ */
+export interface CategoryTile {
+  category: VendorCategory;
+  count: number;
+  /** The cover photo of the best-rated vendor in the category. */
+  coverUrl: string | null;
+  /** The cheapest package anyone in the category lists, in paisa. */
+  priceFrom: number | null;
+}
 
 /** Every category, in the order the browse page shows them. */
 export const ALL_CATEGORIES = Object.keys(CATEGORY_META) as VendorCategory[];

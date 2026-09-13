@@ -15,6 +15,7 @@ import {
   Capability,
   ErrorCode,
   MAX_PROFILE_PHOTOS,
+  MAX_AGE,
   MIN_AGE_BY_GENDER,
   PhotoPrivacy,
   ProfileStatus,
@@ -56,11 +57,22 @@ const MIN_COMPLETENESS_TO_PUBLISH = 60;
  * weight because a profile without them gets very little interest, and the
  * completeness number exists to say so before the member finds out the slow way.
  */
+/**
+ * What each filled-in area is worth. Still sums to 100.
+ *
+ * `career` was 15 and is now split: 10 for saying what you do, 5 for the
+ * detail that makes it checkable - employer, years, achievements. That split is
+ * the point. Anyone can type "Software Engineer"; a profile that also names the
+ * employer, the years and something specific that happened is one a family can
+ * verify in a phone call, and it should read as more complete than one that
+ * does not.
+ */
 const COMPLETENESS_WEIGHTS = {
   basics: 25,
   about: 10,
   education: 15,
-  career: 15,
+  career: 10,
+  professional: 5,
   family: 10,
   horoscope: 15,
   photos: 10,
@@ -113,6 +125,28 @@ export class ProfilesService {
         code: ErrorCode.MAT_UNDERAGE,
         message: `The legal minimum age to marry in India is ${minimum}.`,
         fields: { dateOfBirth: `Must be at least ${minimum} years old.` },
+      });
+    }
+
+    /*
+     * The other end, which is a typo guard rather than a rule about people.
+     *
+     * A mistyped year passes every check above - 1902 for 1992 is a valid date
+     * and comfortably over the minimum - and then the age it implies is
+     * computed onto every search card and used by every age filter the profile
+     * is matched against. Rejecting it at entry is the only cheap moment;
+     * afterwards it is a support request about a profile nobody can find.
+     *
+     * A future date lands here too, as a negative age below the minimum, so
+     * the two ends of the range are both closed.
+     */
+    if (age > MAX_AGE) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'Check the year of birth.',
+        fields: {
+          dateOfBirth: `That date is more than ${MAX_AGE} years ago - check the year.`,
+        },
       });
     }
 
@@ -462,8 +496,6 @@ export class ProfilesService {
     return {
       ...card,
       managedBy: target.managedBy as ProfileDetailDto['managedBy'],
-      maritalStatus: target.maritalStatus as ProfileDetailDto['maritalStatus'],
-      motherTongue: target.motherTongue,
       gotra: target.gotra ?? null,
       diet: target.diet as ProfileDetailDto['diet'],
       about: target.about ?? null,
@@ -475,8 +507,16 @@ export class ProfilesService {
       career: {
         occupation: target.career.occupation ?? '',
         employer: target.career.employer ?? null,
+        yearsOfExperience: target.career.yearsOfExperience ?? null,
         // A band, never the figure: an exact salary is not something to publish.
         incomeBand: incomeBand(target.career.annualIncome),
+        /*
+         * Achievements ride the same gate as the phone number: mutual interest
+         * alone, no payment. They are what two families exchange once they have
+         * agreed to talk, and leaving them on display would turn a detail the
+         * member volunteered for that conversation into a shop window.
+         */
+        achievements: mutual ? (target.career.achievements ?? []) : undefined,
       },
       family: {
         fatherOccupation: target.family.fatherOccupation ?? null,
@@ -552,6 +592,8 @@ export class ProfilesService {
       city: profile.city,
       education: profile.education.highestQualification ?? '',
       occupation: profile.career.occupation ?? '',
+      motherTongue: profile.motherTongue,
+      maritalStatus: profile.maritalStatus as ProfileCardDto['maritalStatus'],
       photoUrl: visible ? (primary?.url ?? null) : null,
       photosBlurred: !visible && Boolean(primary),
       gunaScore: context.gunaScore ?? null,
@@ -627,6 +669,19 @@ export class ProfilesService {
       score += COMPLETENESS_WEIGHTS.education;
     }
     if (profile.career.occupation) score += COMPLETENESS_WEIGHTS.career;
+
+    /*
+     * Two of the three, not all three. Requiring every one would push members
+     * into inventing something to fill the box, which is the opposite of what
+     * this score is for - and plenty of honest profiles have an employer and
+     * years behind them without a headline achievement to point at.
+     */
+    const professional = [
+      Boolean(profile.career.employer),
+      typeof profile.career.yearsOfExperience === 'number',
+      (profile.career.achievements?.length ?? 0) > 0,
+    ].filter(Boolean).length;
+    if (professional >= 2) score += COMPLETENESS_WEIGHTS.professional;
     if (profile.family.fatherOccupation || profile.family.nativePlace) {
       score += COMPLETENESS_WEIGHTS.family;
     }
@@ -668,6 +723,8 @@ export class ProfilesService {
         occupation: profile.career.occupation ?? '',
         employer: profile.career.employer ?? null,
         annualIncome: (profile.career.annualIncome as Paisa | undefined) ?? null,
+        yearsOfExperience: profile.career.yearsOfExperience ?? null,
+        achievements: profile.career.achievements ?? [],
       },
       family: {
         fatherOccupation: profile.family.fatherOccupation ?? null,

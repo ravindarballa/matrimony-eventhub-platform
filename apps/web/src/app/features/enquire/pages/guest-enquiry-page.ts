@@ -10,9 +10,11 @@ import { httpResource } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
+  CATEGORY_META,
   FunctionType,
   MAX_ENQUIRY_VENDORS,
   VendorCategory,
+  categorySlug,
   formatInr,
   toPaisa,
   type Paisa,
@@ -23,12 +25,23 @@ import { GuestApi, unwrapGuest } from '../data/guest-api';
 import { VendorCard } from '../components/vendor-card';
 import { ComparePanel } from '../components/compare-panel';
 import { ReviewsPanel } from '../components/reviews-panel';
+import { WeddingMasthead } from '../../../core/components/wedding-masthead';
+import { HERO_IMAGE } from '../../home/components/home-hero';
 import { AuthApi } from '../../auth/data/auth-api';
 import { AuthStore } from '../../auth/data/auth.store';
 import type { AppError } from '../../../core/models/app-error';
 
 const CATEGORIES = Object.values(VendorCategory);
 const FUNCTIONS = Object.values(FunctionType);
+
+/** The quick links under the search bar, as the reference carries them. */
+const POPULAR: VendorCategory[] = [
+  'VENUE',
+  'PHOTOGRAPHY',
+  'CATERING',
+  'MAKEUP',
+  'DECOR',
+] as VendorCategory[];
 
 type Step = 'pick' | 'details' | 'code';
 
@@ -52,15 +65,79 @@ type Step = 'pick' | 'details' | 'code';
     VendorCard,
     ComparePanel,
     ReviewsPanel,
+    WeddingMasthead,
   ],
   template: `
+    <!--
+      A masthead, because this page had none at all. It is the only route a
+      visitor with no account can do something real on, and it was rendering as
+      a bare form on a white page - no brand, no way back to the marketplace,
+      nothing to say what the site is. Shared, so the browse and landing pages
+      can wear the same one.
+    -->
+    <eh-wedding-masthead context="wedding" />
+
+    @if (step() === 'pick') {
+      <section class="hero">
+        @if (banner(); as url) {
+          <img class="heroShot" [src]="url" alt="" fetchpriority="high" />
+        }
+
+        <div class="heroInner">
+          <h1>Your wedding, your way</h1>
+          <p class="heroSub">
+            Ask up to {{ maxVendors }} vendors at once and compare what they quote.
+            No account needed — we verify your mobile at the end so they can reply.
+          </p>
+
+          <form class="searchbar" (submit)="$event.preventDefault(); toResults()">
+            <label class="field">
+              <span>Vendor type</span>
+              <select [value]="category()" (change)="category.set($any($event.target).value)">
+                @for (c of categories; track c) {
+                  <option [value]="c" [selected]="c === category()">{{ label(c) }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="field">
+              <span>City</span>
+              <input
+                type="text"
+                placeholder="All cities"
+                [value]="city()"
+                (change)="city.set($any($event.target).value)"
+              />
+            </label>
+
+            <label class="field">
+              <span>Function date</span>
+              <input
+                type="date"
+                [min]="today"
+                [value]="date()"
+                (change)="date.set($any($event.target).value)"
+              />
+            </label>
+
+            <button type="submit" class="getstarted">Get started</button>
+          </form>
+
+          <p class="popular">
+            <span class="plabel">Popular searches:</span>
+            @for (c of popular; track c) {
+              <a [routerLink]="['/vendors', slug(c)]">{{ meta(c).plural }}</a>
+            }
+          </p>
+        </div>
+      </section>
+    }
+
     <main class="wrap">
       <header class="head">
-        <h1>Get quotes for your wedding</h1>
-        <p class="sub">
-          Pick up to {{ maxVendors }} vendors and ask them all at once. No account needed —
-          we verify your mobile at the end so vendors can reply.
-        </p>
+        @if (step() !== 'pick') {
+          <h1>Get quotes for your wedding</h1>
+        }
         <ol class="steps" aria-label="Progress">
           <li [class.on]="step() === 'pick'" [class.done]="step() !== 'pick'">1. Choose vendors</li>
           <li [class.on]="step() === 'details'" [class.done]="step() === 'code'">2. Your details</li>
@@ -77,36 +154,16 @@ type Step = 'pick' | 'details' | 'code';
       }
 
       @if (step() === 'pick') {
-        <section class="filters">
-          <label>
-            <span>Category</span>
-            <select [value]="category()" (change)="category.set($any($event.target).value)">
-              @for (c of categories; track c) {
-                <option [value]="c" [selected]="c === category()">{{ label(c) }}</option>
-              }
-            </select>
-          </label>
+        <div class="layout" id="results">
+        <aside class="rail">
+          <!--
+            Vendor type, city and date now live in the hero search bar, which is
+            where the reference puts them and where somebody arriving on the page
+            looks first. What is left here is what narrows a list once it exists.
+          -->
+          <h2 class="railhead">Refine</h2>
 
-          <label>
-            <span>City</span>
-            <input
-              type="text"
-              placeholder="Pune"
-              [value]="city()"
-              (change)="city.set($any($event.target).value)"
-            />
-          </label>
-
-          <label>
-            <span>Function date</span>
-            <input
-              type="date"
-              [min]="today"
-              [value]="date()"
-              (change)="date.set($any($event.target).value)"
-            />
-          </label>
-
+          <section class="filters">
           <!--
             Guests and budget were asked for on step two, after the vendors had
             already been chosen. They belong here: without them a price list
@@ -135,15 +192,6 @@ type Step = 'pick' | 'details' | 'code';
           </label>
 
           <label>
-            <span>Sort by</span>
-            <select [value]="sort()" (change)="sort.set($any($event.target).value)">
-              <option value="rating" [selected]="sort() === 'rating'">Rating</option>
-              <option value="price" [selected]="sort() === 'price'">Price</option>
-              <option value="response" [selected]="sort() === 'response'">Response time</option>
-            </select>
-          </label>
-
-          <label>
             <span>Minimum rating</span>
             <select
               [value]="minRating()"
@@ -155,13 +203,36 @@ type Step = 'pick' | 'details' | 'code';
               <option [value]="4.5" [selected]="minRating() === 4.5">4.5★ and up</option>
             </select>
           </label>
-        </section>
+          </section>
 
-        @if (!date()) {
-          <p class="hint">
-            Pick a date and we will only show vendors who are actually free that day.
+          @if (!date()) {
+            <p class="hint">
+              Pick a date and we will only show vendors who are actually free that day.
+            </p>
+          }
+        </aside>
+
+        <section class="results-col">
+        <div class="sortbar">
+          <p class="tally">
+            @if (results.isLoading()) {
+              Searching…
+            } @else {
+              <strong>{{ results.value().length }}</strong>
+              {{ results.value().length === 1 ? 'vendor' : 'vendors' }}
+              @if (date()) { free on that date }
+            }
           </p>
-        }
+
+          <label class="sort">
+            <span>Sort by</span>
+            <select [value]="sort()" (change)="sort.set($any($event.target).value)">
+              <option value="rating" [selected]="sort() === 'rating'">Rating</option>
+              <option value="price" [selected]="sort() === 'price'">Price</option>
+              <option value="response" [selected]="sort() === 'response'">Response time</option>
+            </select>
+          </label>
+        </div>
 
         @if (selected().size) {
           <section class="tray" role="status">
@@ -198,7 +269,7 @@ type Step = 'pick' | 'details' | 'code';
           />
         }
 
-<div class="results">
+        <div class="results">
           @for (vendor of results.value(); track vendor.id) {
             <eh-vendor-card
               [vendor]="vendor"
@@ -217,6 +288,8 @@ type Step = 'pick' | 'details' | 'code';
               </section>
             }
           }
+        </div>
+        </section>
         </div>
       }
 
@@ -330,22 +403,111 @@ type Step = 'pick' | 'details' | 'code';
     </main>
   `,
   styles: `
-    /* Two across once there is room: choosing between vendors means seeing
-       more than one of them at a time. */
-    /* Tiles. align-items:start so an expanded one grows on its own rather
-       than stretching every tile in its row to match. */
+    /* Tiles beside the rail. align-items:start so an expanded one grows on its
+       own rather than stretching every tile in its row to match. */
     .results { display: grid; gap: 1rem; align-items: start;
                grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
-    .wrap { max-width: 74rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
+    /*
+     * The wedding side's palette, taken from the reference: a deep magenta
+     * utility strip over a brighter pink brand bar, with the same bright pink
+     * on the one button that matters. Scoped to this page rather than dropped
+     * into the global theme - the matrimony side is maroon and the portals are
+     * indigo, and a half-applied rebrand is worse than none.
+     */
+    :host { display: block; --pink: var(--brand); --pinkHover: var(--brand-deep); }
+
+    /* ----------------------------------------------------------------- hero */
+
+    .hero { position: relative; display: grid; place-items: center;
+            min-height: clamp(19rem, 42vw, 27rem); overflow: hidden;
+            background: linear-gradient(160deg, var(--brand-deep) 0%, var(--brand-deep) 100%); }
+    .heroShot { position: absolute; inset: 0; width: 100%; height: 100%;
+                object-fit: cover; }
+    /*
+     * A magenta duotone rather than a neutral darkening, and deliberately
+     * heavy. The hero photograph is whatever the best-rated venue has uploaded,
+     * which on a fresh install is seeded placeholder art - left at a light
+     * scrim that came through as a brown smear behind white text. Tinted this
+     * hard the hero reads as a brand panel with some texture in it whatever the
+     * source image is, and a real photograph still shows through as one.
+     */
+    .hero::after { content: ''; position: absolute; inset: 0;
+                   background: linear-gradient(to bottom, rgb(var(--scrim-rgb) / 0.58) 0%,
+                                                          rgb(var(--scrim-rgb) / 0.52) 45%,
+                                                          rgb(var(--scrim-rgb) / 0.88) 100%); }
+    /* border-box, or the 100% width plus the padding overflows the hero and the
+       search bar runs flush to both screen edges on a phone. */
+    .heroInner { position: relative; z-index: 1; width: 100%; max-width: 62rem;
+                 box-sizing: border-box;
+                 padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem);
+                 text-align: center; color: #fff; }
+    .hero h1 { margin: 0; font-size: clamp(1.9rem, 5.2vw, 3.4rem); font-weight: 800;
+               letter-spacing: -0.025em; line-height: 1.08;
+               text-shadow: 0 2px 18px rgb(0 0 0 / 0.35); }
+    .heroSub { margin: 0.7rem auto 0; max-width: 52ch; font-size: clamp(0.95rem, 1.6vw, 1.12rem);
+               line-height: 1.55; opacity: 0.95;
+               text-shadow: 0 1px 12px rgb(0 0 0 / 0.35); }
+
+    /* One white bar, three fields and the button flush inside it. */
+    .searchbar { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto;
+                 align-items: stretch; gap: 0; margin: clamp(1.3rem, 3vw, 2rem) auto 0;
+                 max-width: 54rem; background: #fff; border-radius: 10px;
+                 overflow: hidden; box-shadow: 0 12px 34px rgb(0 0 0 / 0.28); }
+    .field { display: flex; flex-direction: column; justify-content: center;
+             gap: 0.1rem; text-align: left; padding: 0.55rem 0.9rem;
+             border-right: 1px solid rgb(0 0 0 / 0.1);
+             text-transform: none; letter-spacing: normal; }
+    .field > span { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em;
+                    text-transform: uppercase; color: rgb(0 0 0 / 0.45); }
+    .field select, .field input { font: inherit; font-size: 0.98rem; border: 0;
+                                  padding: 0.15rem 0; background: transparent;
+                                  color: rgb(0 0 0 / 0.87); width: 100%; }
+    .field select:focus, .field input:focus { outline: none; }
+    .getstarted { font: inherit; font-size: 1rem; font-weight: 700; cursor: pointer;
+                  border: 0; background: var(--pink); color: #fff;
+                  padding: 0 clamp(1.4rem, 3vw, 2.6rem); white-space: nowrap;
+                  transition: background 120ms ease; }
+    .getstarted:hover { background: var(--pinkHover); }
+
+    .popular { margin: 1.1rem 0 0; font-size: 0.86rem; display: flex; flex-wrap: wrap;
+               gap: 0.3rem 0.85rem; justify-content: center; align-items: baseline; }
+    .plabel { opacity: 0.8; }
+    .popular a { color: #fff; text-decoration: underline;
+                 text-underline-offset: 3px; opacity: 0.92; }
+    .popular a:hover { opacity: 1; }
+
+    .wrap { max-width: 78rem; margin: 1.75rem auto 4rem; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
+
+    /* Rail and results, the same shell as the browse listing. */
+    .layout { display: grid; grid-template-columns: 15rem 1fr; gap: 1.25rem;
+              align-items: start; }
+    /* Scrolls with the page. Neither sticky nor its own scroll container - both
+       hide part of the rail when it is taller than the viewport. */
+    .rail { display: flex; flex-direction: column; gap: 0.7rem; }
+    .railhead { margin: 0; font-size: 0.72rem; font-weight: 700;
+                letter-spacing: 0.09em; text-transform: uppercase;
+                color: rgb(0 0 0 / 0.42); }
+    .results-col { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+    .sortbar { display: flex; align-items: center; justify-content: space-between;
+               gap: 1rem; flex-wrap: wrap; }
+    .tally { margin: 0; font-size: 0.88rem; color: rgb(0 0 0 / 0.6); }
+    .tally strong { color: var(--brand-deep); font-size: 1.05rem; }
+    .sort { display: flex; flex-direction: row; align-items: center; gap: 0.5rem;
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: rgb(0 0 0 / 0.55); }
+    .sort select { font: inherit; font-size: 0.9rem; padding: 0.4rem 0.5rem;
+                   border-radius: 6px; border: 1px solid rgb(0 0 0 / 0.25);
+                   text-transform: none; letter-spacing: normal;
+                   color: rgb(0 0 0 / 0.87); }
     .head h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
     .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
     .steps { list-style: none; display: flex; gap: 1rem; flex-wrap: wrap;
              margin: 0.9rem 0 0; padding: 0; font-size: 0.8rem;
              color: rgb(0 0 0 / 0.45); }
-    .steps li.on { color: #2f2d78; font-weight: 600; }
+    .steps li.on { color: var(--brand); font-weight: 600; }
     .steps li.done { color: #1b5e20; }
-    .filters { display: flex; gap: 0.75rem; flex-wrap: wrap;
+    .filters { display: flex; flex-direction: column; gap: 0.75rem;
                background: #fff; border: 1px solid rgb(0 0 0 / 0.12);
                border-radius: 10px; padding: 0.9rem 1rem; }
     .filters label { display: flex; flex-direction: column; gap: 0.25rem;
@@ -356,9 +518,25 @@ type Step = 'pick' | 'details' | 'code';
                      border: 1px solid rgb(0 0 0 / 0.25); text-transform: none;
                      letter-spacing: normal; color: rgb(0 0 0 / 0.87); }
     .hint { margin: 0; color: rgb(0 0 0 / 0.6); font-size: 0.85rem; }
+
+    /* The rail becomes a block above the results: on a phone the filters are
+       still the only way through a long list. */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .rail { max-height: none; overflow: visible; }
+      .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+    }
+
+    /* The search bar stacks before it squeezes: three fields and a button side
+       by side stop being readable well before the page does. */
+    @media (max-width: 760px) {
+      .searchbar { grid-template-columns: 1fr; }
+      .field { border-right: 0; border-bottom: 1px solid rgb(0 0 0 / 0.1); }
+      .getstarted { padding: 0.85rem 1rem; }
+    }
     .tray { position: sticky; top: 0.5rem; z-index: 5;
             display: flex; align-items: center; justify-content: space-between;
-            gap: 1rem; background: #2f2d78; color: #fff;
+            gap: 1rem; background: var(--brand); color: #fff;
             padding: 0.7rem 1rem; border-radius: 10px; }
     .muted { opacity: 0.7; }
     .cover { width: calc(100% + 2.5rem); margin: -1.1rem -1.25rem 0;
@@ -366,7 +544,7 @@ type Step = 'pick' | 'details' | 'code';
              background: rgb(0 0 0 / 0.05); border-radius: 10px 10px 0 0; }
     .card { border: 1px solid rgb(0 0 0 / 0.12); border-radius: 10px; background: #fff;
             padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; }
-    .card.picked { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }
+    .card.picked { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
     .row { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
     h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
     .meta { margin: 0.2rem 0 0; font-size: 0.85rem; color: rgb(0 0 0 / 0.6); }
@@ -476,6 +654,37 @@ export class GuestEnquiryPage {
   protected readonly chosenNames = computed(() =>
     [...this.selected().values()].map((v) => v.businessName).join(', '),
   );
+
+  protected readonly popular = POPULAR;
+
+  protected slug(category: VendorCategory): string {
+    return categorySlug(category);
+  }
+
+  protected meta(category: VendorCategory) {
+    return CATEGORY_META[category];
+  }
+
+  /**
+   * The hero's Get started button.
+   *
+   * The filters are live, so the results below have already changed by the time
+   * it is pressed - there is nothing to submit. What a visitor actually wants
+   * from it is to be taken to what they just asked for, which on a tall hero is
+   * off the bottom of the screen.
+   */
+  protected toResults(): void {
+    document.getElementById('results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /**
+   * The hero backdrop: the wedding photograph shipped with the app.
+   *
+   * It used to be the first result that had a photo, which tied the top of the
+   * page to whatever the filters happened to return - and on seeded data that
+   * was a flat colour block. See public/hero/README.md for how to swap it.
+   */
+  protected readonly banner = signal(HERO_IMAGE);
 
   protected toggle(vendor: VendorSearchResult): void {
     const next = new Map(this.selected());

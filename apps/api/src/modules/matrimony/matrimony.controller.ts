@@ -29,6 +29,7 @@ import { ProfilesService } from './services/profiles.service.js';
 import { ProfileSearchService } from './services/profile-search.service.js';
 import { InterestsService } from './services/interests.service.js';
 import { ChatService } from './services/chat.service.js';
+import { DashboardService } from './services/dashboard.service.js';
 import {
   BlockDto,
   InterestTabQuery,
@@ -48,7 +49,18 @@ export class MatrimonyController {
     private readonly search: ProfileSearchService,
     private readonly interests: InterestsService,
     private readonly chat: ChatService,
+    private readonly dashboard: DashboardService,
   ) {}
+
+  /**
+   * The member's own summary. Answers without a profile rather than 404ing,
+   * because this is the screen that explains how to get one.
+   */
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Consolidated counts for the signed-in member' })
+  summary(@CurrentUser('sub') userId: string) {
+    return this.dashboard.summary(userId);
+  }
 
   // ------------------------------------------------------------------ profile
 

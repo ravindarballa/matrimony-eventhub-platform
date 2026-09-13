@@ -212,7 +212,7 @@ const emptyLine = (): DraftLine => ({
     .card { border: 1px solid rgb(0 0 0 / 0.12); border-left-width: 4px;
             border-radius: 10px; background: #fff; padding: 1.1rem 1.25rem;
             display: flex; flex-direction: column; gap: 0.6rem; }
-    .card.fresh { border-left-color: #2f2d78; }
+    .card.fresh { border-left-color: var(--brand); }
     .card.soon  { border-left-color: #c98a16; }
     .card.late  { border-left-color: #b3261e; }
     .card.closed { border-left-color: rgb(0 0 0 / 0.15); }

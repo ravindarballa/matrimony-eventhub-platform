@@ -15,6 +15,7 @@ import { AuthStore } from '../../auth/data/auth.store';
 import type { AppError } from '../../../core/models/app-error';
 import { landingRouteFor } from '../../../core/guards/auth.guards';
 import { ServiceGlyph, type GlyphName } from './service-glyph';
+import { WeddingMasthead } from '../../../core/components/wedding-masthead';
 
 /** Both sides of a match and every service, scattered behind the fold. */
 const BACKDROP: GlyphName[] = [
@@ -23,6 +24,9 @@ const BACKDROP: GlyphName[] = [
   'GROOM', 'INVITATION', 'BRIDE', 'TRANSPORT', 'VENUE', 'GROOM',
   'DECOR', 'BRIDE', 'CATERING', 'GROOM', 'PHOTOGRAPHY', 'MUSIC',
 ];
+
+/** Swappable without touching code - see public/hero/README.md. */
+export const HERO_IMAGE = '/hero/wedding-mandap.jpg';
 
 type TabId = 'SEEKER' | 'CUSTOMER' | 'VENDOR_OWNER';
 
@@ -52,30 +56,28 @@ const TABS: { id: TabId; label: string }[] = [
 @Component({
   selector: 'eh-home-hero',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, MatButtonModule, ServiceGlyph],
+  imports: [RouterLink, MatButtonModule, ServiceGlyph, WeddingMasthead],
   template: `
-    <header class="bar">
-      <a class="brand" routerLink="/">
-        <span class="mark">EH</span>
-        <span>Matrimony <strong>EventHub</strong></span>
-      </a>
-      <nav>
-        @if (store.isAuthenticated()) {
-          <a mat-flat-button class="cta" [routerLink]="myPortal()">Go to my account</a>
-        } @else {
-          <a mat-button routerLink="/auth/login">Sign in</a>
-          <a mat-flat-button class="cta" routerLink="/auth/register">Register free</a>
-        }
-      </nav>
-    </header>
+    <eh-wedding-masthead context="home" />
 
     <section class="hero">
-      <!-- Decorative, so it is hidden from assistive technology entirely. -->
-      <div class="wash" aria-hidden="true">
-        @for (glyph of backdrop; track $index) {
-          <eh-service-glyph [name]="glyph" />
-        }
-      </div>
+      <!--
+        Decorative, so it is hidden from assistive technology entirely. The
+        drawn wash is kept as the branch for an install that has removed the
+        image, so a missing file degrades to a designed hero rather than a flat
+        rectangle.
+      -->
+      @if (shot(); as url) {
+        <div class="photo" aria-hidden="true">
+          <img [src]="url" alt="" fetchpriority="high" />
+        </div>
+      } @else {
+        <div class="wash" aria-hidden="true">
+          @for (glyph of backdrop; track $index) {
+            <eh-service-glyph [name]="glyph" />
+          }
+        </div>
+      }
 
       <div class="inner">
         <div class="pitch">
@@ -250,23 +252,28 @@ const TABS: { id: TabId; label: string }[] = [
     </section>
   `,
   styles: `
-    :host { display: block; --ink: #2f2d78; --gold: #e8b341; }
-    .bar { position: sticky; top: 0; z-index: 20; display: flex; gap: 1rem;
-           align-items: center; justify-content: space-between;
-           padding: 0.7rem clamp(1rem, 4vw, 3rem); background: var(--ink); color: #fff; }
-    .brand { display: flex; align-items: center; gap: 0.6rem; color: inherit;
-             text-decoration: none; font-size: 1.05rem; }
-    .brand strong { color: var(--gold); font-weight: 700; }
-    .mark { display: grid; place-items: center; width: 2rem; height: 2rem;
-            border-radius: 7px; background: #fff; color: var(--ink);
-            font-weight: 800; font-size: 0.85rem; }
-    .bar nav { display: flex; align-items: center; gap: 0.4rem; }
-    .bar a[mat-button] { color: #fff; }
-    .cta { background: var(--gold) !important; color: #2a2410 !important; font-weight: 700; }
+    /*
+     * The wedding side's palette, matching the marketplace pages. The ink was a
+     * deep indigo with gold; the platform's public face is now magenta and
+     * pink, and one page keeping the old scheme reads as a different product.
+     * Gold survives as the accent on the trust list alone, where it is doing
+     * real work against the magenta rather than competing with the pink.
+     */
+    :host { display: block; --ink: var(--brand-deep); --pink: var(--brand); --gold: #f0b429; }
 
     .hero { position: relative; overflow: hidden; color: #fff;
-            background: radial-gradient(1100px 520px at 15% -10%, #4a47a8 0%, transparent 60%),
-                        linear-gradient(160deg, #2f2d78 0%, #23214f 100%); }
+            background: radial-gradient(1100px 520px at 15% -10%, var(--brand-light) 0%, transparent 60%),
+                        linear-gradient(160deg, var(--brand-deep) 0%, var(--brand-deep) 100%); }
+
+    /* The photograph is the backdrop, not the subject: the pitch and the panel
+       sit on top of it, so it is darkened hard enough that white text over an
+       unknown image is never a gamble. */
+    .photo { position: absolute; inset: 0; }
+    .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo::after { content: ''; position: absolute; inset: 0;
+                    background: linear-gradient(105deg, rgb(var(--scrim-rgb) / 0.82) 0%,
+                                                        rgb(var(--scrim-rgb) / 0.62) 45%,
+                                                        rgb(var(--scrim-rgb) / 0.40) 100%); }
     .wash { position: absolute; inset: -4% -2% -8%; display: grid;
             grid-template-columns: repeat(6, 1fr); gap: clamp(1rem, 3vw, 2.5rem);
             opacity: 0.13; pointer-events: none; transform: rotate(-8deg) scale(1.15); }
@@ -291,11 +298,11 @@ const TABS: { id: TabId; label: string }[] = [
     .panel { background: #fff; color: rgb(0 0 0 / 0.87); border-radius: 14px;
              overflow: hidden; box-shadow: 0 18px 44px rgb(0 0 0 / 0.28); }
     .tabs { display: grid; grid-template-columns: repeat(3, 1fr);
-            background: rgb(47 45 120 / 0.06); }
+            background: rgb(var(--brand-rgb) / 0.06); }
     .tabs button { font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
                    padding: 0.8rem 0.4rem; border: 0; background: transparent;
                    color: rgb(0 0 0 / 0.55); border-bottom: 3px solid transparent; }
-    .tabs button.on { background: #fff; color: var(--ink); border-bottom-color: var(--gold); }
+    .tabs button.on { background: #fff; color: var(--ink); border-bottom-color: var(--pink); }
     .body { display: flex; flex-direction: column; gap: 0.85rem;
             padding: 1.3rem 1.5rem 1.5rem; }
     .body h2 { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
@@ -312,7 +319,7 @@ const TABS: { id: TabId; label: string }[] = [
     select { font: inherit; font-size: 0.95rem; padding: 0.55rem 0.6rem; border-radius: 8px;
              border: 1px solid rgb(0 0 0 / 0.22); background: #fff; color: rgb(0 0 0 / 0.87);
              text-transform: none; letter-spacing: normal; }
-    .go { margin-top: 0.3rem; background: var(--ink) !important;
+    .go { margin-top: 0.3rem; background: var(--pink) !important;
           color: #fff !important; font-weight: 700; }
     .fine { margin: 0; font-size: 0.75rem; color: rgb(0 0 0 / 0.55); text-align: center; }
     .fine a { color: var(--ink); font-weight: 600; }
@@ -335,6 +342,21 @@ export class HomeHero {
 
   protected readonly backdrop = BACKDROP;
   protected readonly ages = Array.from({ length: 39 }, (_, i) => i + 18);
+
+  /**
+   * The hero photograph.
+   *
+   * A real wedding, shipped with the app, rather than the best-rated venue's
+   * cover shot. Pulling it from the marketplace sounded right and looked wrong:
+   * whatever a vendor happens to have uploaded is not composed for a headline to
+   * sit on, and on seeded data it was a flat colour block that made the whole
+   * page look washed out. It also cost a request on first paint for an image
+   * that never changes.
+   *
+   * See `public/hero/README.md` for how to swap it - nothing here names
+   * anything but the path.
+   */
+  protected readonly shot = signal(HERO_IMAGE);
 
   protected readonly tabs = TABS;
   protected readonly tab = signal<TabId>('SEEKER');

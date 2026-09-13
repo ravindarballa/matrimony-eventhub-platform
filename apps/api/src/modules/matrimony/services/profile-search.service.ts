@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
-import { ProfileStatus, type ProfileCardDto, type ProfileSearchQuery } from '@eventhub/contracts';
+import {
+  ProfileStatus,
+  parseProfileDisplayId,
+  type ProfileCardDto,
+  type ProfileSearchQuery,
+} from '@eventhub/contracts';
 
 import {
   MatrimonyProfile,
@@ -74,6 +79,35 @@ export class ProfileSearchService {
       filter.gotra = { $nin: query.excludeGotras.map((g) => ci(g)) };
     }
 
+    // The quick lookup: a quoted id, or part of a name.
+    //
+    // It is another clause on the same filter, deliberately, and not a shortcut
+    // around it. A display id is quotable and therefore guessable - seven hex
+    // characters anyone can read off a screenshot - so if looking one up
+    // skipped the rules above, a blocked member would only have to type an id
+    // to walk straight back in, and the opposite-gender rule would come apart
+    // the moment somebody shared theirs. Everything the ordinary search
+    // enforces still holds here; this only narrows further.
+    const term = query.q?.trim();
+    if (term) {
+      const hexTail = parseProfileDisplayId(term);
+      if (hexTail) {
+        // The display id is derived from the record id rather than stored, so
+        // there is no field to match it against. The record id is compared as
+        // a string instead, anchored so that EHCD97D7D cannot be satisfied by
+        // an id that merely contains those characters somewhere in the middle.
+        filter.$expr = {
+          $regexMatch: { input: { $toString: '$_id' }, regex: `${hexTail}$` },
+        };
+      } else {
+        // A name, matched anywhere in it so half of one still finds the
+        // profile. Escaped before it reaches the regex engine: an unescaped
+        // term lets a caller inject a pattern, and one nested quantifier is
+        // enough to hang the query on a collection this size.
+        filter.displayName = { $regex: escapeRegex(term), $options: 'i' };
+      }
+    }
+
     // Sorting by guna needs every candidate scored, so it is done after the
     // fetch; the other two sorts ride the ESR index.
     const sortByGuna = query.sort === 'guna' || query.minGunaScore !== undefined;
@@ -125,6 +159,11 @@ export class ProfileSearchService {
 
     return { items: cards, total, page };
   }
+}
+
+/** Renders a user's term inert as a regex, leaving it to match literally. */
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** An exact match that ignores case, for free-text fields users type. */

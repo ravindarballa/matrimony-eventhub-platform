@@ -39,11 +39,14 @@ const FUNCTIONS = Object.values(FunctionType);
   imports: [MatButtonModule, MatProgressBarModule],
   template: `
     <main class="wrap">
-      <header class="head">
-        <h1>Find vendors</h1>
-        <p class="sub">
-          Only vendors free on your date are shown, so everything here is bookable.
-        </p>
+      <header class="band">
+        <div class="lede">
+          <h1>Find vendors</h1>
+          <p class="sub">
+            Only vendors free on your date are shown, so everything here is
+            bookable.
+          </p>
+        </div>
       </header>
 
       <section class="filters">
@@ -104,6 +107,8 @@ const FUNCTIONS = Object.values(FunctionType);
       @if (error(); as e) {
         <p class="err" role="alert">{{ e }}</p>
       }
+
+      <div class="tiles">
 
       @for (vendor of results.value(); track vendor.id) {
         <article class="card" [class.picked]="selected().has(vendor.id)">
@@ -167,51 +172,87 @@ const FUNCTIONS = Object.values(FunctionType);
           </section>
         }
       }
+      </div>
     </main>
   `,
   styles: `
-    .wrap { max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
-            display: flex; flex-direction: column; gap: 1rem; }
-    .head h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
-    .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
+    .wrap { max-width: 74rem; margin: 1.5rem auto 4rem; padding: 0 1.25rem;
+            display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .band { padding: 1.1rem 1.35rem; border-radius: 14px;
+            background: linear-gradient(120deg, var(--brand-deep), var(--brand-light));
+            color: #fff; box-shadow: 0 6px 20px rgb(var(--brand-deep-rgb) / 0.25); }
+    h1 { margin: 0; font-size: 1.45rem; font-weight: 600; }
+    .band .sub { margin: 0.3rem 0 0; color: rgb(255 255 255 / 0.85); font-size: 0.88rem;
+                 max-width: 40rem; }
+
     .filters { display: flex; gap: 0.75rem; flex-wrap: wrap;
-               background: #fff; border: 1px solid rgb(0 0 0 / 0.12);
-               border-radius: 10px; padding: 0.9rem 1rem; }
+               background: #fff; border: 1px solid var(--brand-line);
+               border-radius: 12px; padding: 0.9rem 1rem; }
     .filters label { display: flex; flex-direction: column; gap: 0.25rem;
                      font-size: 0.72rem; text-transform: uppercase;
                      letter-spacing: 0.05em; color: rgb(0 0 0 / 0.55); }
     .filters input, .filters select { font: inherit; font-size: 0.9rem;
                      padding: 0.4rem 0.5rem; border-radius: 6px;
                      border: 1px solid rgb(0 0 0 / 0.25); text-transform: none;
-                     letter-spacing: normal; color: rgb(0 0 0 / 0.87); }
+                     letter-spacing: normal; color: rgb(0 0 0 / 0.87); background: #fff; }
+
+    /* Sticky so the count and the send button stay reachable while comparing. */
     .tray { position: sticky; top: 4.5rem; z-index: 5;
             display: flex; align-items: center; justify-content: space-between;
-            gap: 1rem; background: #2f2d78; color: #fff;
-            padding: 0.7rem 1rem; border-radius: 10px; }
+            gap: 1rem; background: var(--brand); color: #fff;
+            padding: 0.7rem 1rem; border-radius: 10px;
+            box-shadow: 0 4px 14px rgb(var(--brand-deep-rgb) / 0.3); }
     .muted { opacity: 0.7; }
+
+    /*
+     * Photo-forward tiles rather than a single column. A vendor is chosen from
+     * the picture first and the particulars second, and three across lets a
+     * customer compare them instead of scrolling between them.
+     */
+    .tiles { display: grid; gap: 1rem;
+             grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr)); }
+    .tiles .empty { grid-column: 1 / -1; }
+
+    .card { border: 1px solid var(--brand-line); border-radius: 12px; background: #fff;
+            padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem;
+            transition: transform 120ms ease, box-shadow 120ms ease; }
+    .card:hover { transform: translateY(-2px);
+                  box-shadow: 0 6px 16px rgb(var(--brand-rgb) / 0.12); }
+    .card.picked { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+
     .cover { width: calc(100% + 2.5rem); margin: -1.1rem -1.25rem 0;
-             aspect-ratio: 16 / 7; object-fit: cover; display: block;
-             background: rgb(0 0 0 / 0.05); border-radius: 10px 10px 0 0; }
-    .card { border: 1px solid rgb(0 0 0 / 0.12); border-radius: 10px; background: #fff;
-            padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; }
-    .card.picked { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }
+             aspect-ratio: 16 / 9; object-fit: cover; display: block;
+             background: rgb(0 0 0 / 0.05); border-radius: 11px 11px 0 0; }
+
     .row { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
-    h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
-    .meta { margin: 0.2rem 0 0; font-size: 0.85rem; color: rgb(0 0 0 / 0.6); }
+    h2 { margin: 0; font-size: 1.02rem; font-weight: 600; color: var(--brand-deep); }
+    .meta { margin: 0.2rem 0 0; font-size: 0.82rem; color: rgb(0 0 0 / 0.6); }
     .verified { color: #1b5e20; font-weight: 700; margin-left: 0.4rem; }
-    .price { text-align: right; }
+    .price { text-align: right; white-space: nowrap; }
     .from { display: block; font-size: 0.7rem; color: rgb(0 0 0 / 0.5); }
-    .price strong { font-variant-numeric: tabular-nums; }
-    .desc { margin: 0; font-size: 0.88rem; color: rgb(0 0 0 / 0.75); }
-    .stats { display: flex; gap: 1rem; font-size: 0.8rem; color: rgb(0 0 0 / 0.55); flex-wrap: wrap; }
+    .price strong { font-variant-numeric: tabular-nums; color: var(--brand-ink); }
+
+    /* Two lines of description: enough to tell tiles apart, not enough to make
+       one twice the height of its neighbour. */
+    .desc { margin: 0; font-size: 0.86rem; color: rgb(0 0 0 / 0.75);
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; }
+
+    .stats { display: flex; gap: 0.9rem; font-size: 0.78rem;
+             color: rgb(0 0 0 / 0.55); flex-wrap: wrap; }
     .services { list-style: none; margin: 0; padding: 0.6rem 0 0;
-                border-top: 1px solid rgb(0 0 0 / 0.08);
-                display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
+                border-top: 1px solid var(--brand-line);
+                display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.83rem; }
     .services li { display: flex; justify-content: space-between; gap: 1rem; }
-    .empty { text-align: center; padding: 3rem 1rem; color: rgb(0 0 0 / 0.6); }
+
+    .empty { text-align: center; padding: 3rem 1rem; color: rgb(0 0 0 / 0.6);
+             border: 1px dashed var(--brand-line); border-radius: 12px; }
     .empty h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
     .err { color: #b3261e; font-size: 0.9rem; }
-    button { align-self: flex-start; }
+    /* margin-top:auto pins the button to the bottom so tiles of differing
+       height still line their actions up. */
+    .card button { align-self: flex-start; margin-top: auto; }
   `,
 })
 export class VendorSearchPage {

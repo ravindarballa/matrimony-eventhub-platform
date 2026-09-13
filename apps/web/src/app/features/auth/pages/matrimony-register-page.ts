@@ -82,6 +82,29 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
     </header>
 
     <main class="page">
+      <!--
+        A side panel beside the form on wide screens, deliberately drawn rather
+        than photographed. Every other screen on the platform leads with a
+        photograph, but the only faces this product holds belong to members, and
+        putting one on a signup page shows a real person's photo to strangers
+        who have not been matched with them - the exact consent problem the
+        matrimony side spends the rest of its code preventing.
+      -->
+      <aside class="pitch" aria-hidden="true">
+        <h2>Matches your family would approve of</h2>
+        <ul>
+          <li><strong>36-guna matching</strong> on every profile you are shown</li>
+          <li><strong>Community and gotra</strong> filters that actually exclude</li>
+          <li><strong>Photos stay blurred</strong> until interest is mutual</li>
+          <li><strong>Your number is hidden</strong> until you choose otherwise</li>
+        </ul>
+        <p class="then">
+          And when it is settled — the venue, the caterer and the pandit are on
+          the same account.
+        </p>
+      </aside>
+
+      <div class="form">
       <header class="intro">
         <h1>Create your matrimony profile</h1>
         <p>
@@ -325,11 +348,12 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
       <p class="alt">
         Only after quotes? <a routerLink="/enquire">Enquire without an account</a>
       </p>
+      </div>
     </main>
   `,
   styles: `
-    :host { display: block; min-height: 100vh; background: #f7f7fb;
-            --ink: #2f2d78; --gold: #e8b341; }
+    :host { display: block; min-height: 100vh; background: var(--ground);
+            --ink: var(--brand); --gold: var(--star); }
 
     .bar { display: flex; align-items: center; justify-content: space-between;
            gap: 1rem; padding: 0.7rem clamp(1rem, 4vw, 3rem);
@@ -342,8 +366,27 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
             font-weight: 800; font-size: 0.85rem; }
     .signin { color: #fff !important; font-size: 0.85rem; }
 
-    .page { max-width: 52rem; margin: 0 auto;
+    .page { max-width: 70rem; margin: 0 auto; display: grid; gap: clamp(1.5rem, 4vw, 2.5rem);
+            grid-template-columns: 19rem 1fr; align-items: start;
             padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 4vw, 2rem) 3rem; }
+    .form { min-width: 0; }
+
+    .pitch { position: sticky; top: 1.5rem; border-radius: 14px; color: #fff;
+             padding: 1.6rem 1.5rem;
+             background: radial-gradient(520px 260px at 10% -20%, var(--brand-light) 0%, transparent 62%),
+                         linear-gradient(160deg, var(--brand) 0%, var(--brand-deep) 100%); }
+    .pitch h2 { margin: 0 0 1rem; font-size: 1.2rem; font-weight: 700; color: #fff;
+                line-height: 1.3; letter-spacing: -0.01em; }
+    .pitch ul { list-style: none; margin: 0; padding: 0; display: flex;
+                flex-direction: column; gap: 0.7rem; font-size: 0.88rem;
+                line-height: 1.5; }
+    .pitch li { position: relative; padding-left: 1.5rem; opacity: 0.92; }
+    .pitch li::before { content: "✓"; position: absolute; left: 0;
+                        color: var(--gold); font-weight: 700; }
+    .pitch strong { color: var(--gold); font-weight: 700; }
+    .then { margin: 1.2rem 0 0; padding-top: 1rem; font-size: 0.83rem; line-height: 1.55;
+            opacity: 0.8; border-top: 1px solid rgb(255 255 255 / 0.18); }
+
     .intro { text-align: center; margin-bottom: 1.4rem; }
     h1 { margin: 0; font-size: clamp(1.5rem, 3.4vw, 2.1rem); color: var(--ink);
          letter-spacing: -0.02em; }
@@ -388,6 +431,12 @@ const MANAGED_BY: { value: ProfileManagedBy; label: string }[] = [
            color: rgb(0 0 0 / 0.6); }
     .alt a, .lead a { color: var(--ink); font-weight: 600; }
 
+    /* The panel is reassurance, not instruction, so it is the part that goes
+       when the width is needed for the form itself. */
+    @media (max-width: 940px) {
+      .page { grid-template-columns: 1fr; max-width: 52rem; }
+      .pitch { display: none; }
+    }
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
       .signin { display: none; }

@@ -222,23 +222,35 @@ export class ChatService {
     };
   }
 
-  /** Total unread across every conversation. Drives the badge. */
-  async unreadCount(userId: string): Promise<{ count: number }> {
+  /**
+   * How many conversations there are and how many messages are unread.
+   *
+   * A member with no profile yet is answered with zeroes rather than an error:
+   * both callers are ambient chrome - the badge in the masthead and the
+   * dashboard - and neither should fail the page it sits on.
+   */
+  async counts(userId: string): Promise<{ threads: number; unread: number }> {
     const mine = await this.profiles.requireOwn(userId).catch(() => null);
-    if (!mine) return { count: 0 };
+    if (!mine) return { threads: 0, unread: 0 };
 
     const threadIds = (
       await this.threads.find({ participantIds: mine._id }).select('_id')
     ).map((t) => t._id);
-    if (!threadIds.length) return { count: 0 };
+    if (!threadIds.length) return { threads: 0, unread: 0 };
 
     return {
-      count: await this.messages.countDocuments({
+      threads: threadIds.length,
+      unread: await this.messages.countDocuments({
         threadId: { $in: threadIds },
         senderProfileId: { $ne: mine._id },
         readAt: { $exists: false },
       }),
     };
+  }
+
+  /** Total unread across every conversation. Drives the badge. */
+  async unreadCount(userId: string): Promise<{ count: number }> {
+    return { count: (await this.counts(userId)).unread };
   }
 
   private async requireParticipant(

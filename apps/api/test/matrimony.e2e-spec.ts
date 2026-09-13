@@ -6,10 +6,12 @@ import { Types } from 'mongoose';
 import type { Model } from 'mongoose';
 import type { INestApplication } from '@nestjs/common';
 import {
+  ErrorCode,
   FREE_DAILY_INTEREST_QUOTA,
   InterestStatus,
   PhotoPrivacy,
   ProfileStatus,
+  profileDisplayId,
 } from '@eventhub/contracts';
 
 import { MatrimonyModule } from '../src/modules/matrimony/matrimony.module.js';
@@ -18,6 +20,7 @@ import { ProfileSearchService } from '../src/modules/matrimony/services/profile-
 import { InterestsService } from '../src/modules/matrimony/services/interests.service.js';
 import { EntitlementsService } from '../src/modules/subscriptions/services/entitlements.service.js';
 import { ChatService } from '../src/modules/matrimony/services/chat.service.js';
+import { DashboardService } from '../src/modules/matrimony/services/dashboard.service.js';
 import { MatrimonyProfile } from '../src/modules/matrimony/schemas/matrimony-profile.schema.js';
 import {
   Block,
@@ -53,6 +56,7 @@ describe('Matrimony (e2e)', () => {
   let interests: InterestsService;
   let entitlements: EntitlementsService;
   let chat: ChatService;
+  let dashboard: DashboardService;
 
   let profileModel: Model<MatrimonyProfileDocument>;
   let interestModel: Model<InterestDocument>;
@@ -82,6 +86,7 @@ describe('Matrimony (e2e)', () => {
     interests = moduleRef.get(InterestsService);
     entitlements = moduleRef.get(EntitlementsService);
     chat = moduleRef.get(ChatService);
+    dashboard = moduleRef.get(DashboardService);
 
     profileModel = moduleRef.get(getModelToken(MatrimonyProfile.name));
     interestModel = moduleRef.get(getModelToken(Interest.name));
@@ -482,6 +487,79 @@ describe('Matrimony (e2e)', () => {
       const viewer = await seed({ gender: 'MALE' });
 
       const { items } = await search.search(viewer.userId, {});
+      expect(items).toHaveLength(0);
+    });
+
+    // --------------------------------------------------------- quick lookup
+
+    it('finds a profile by the id families quote down the phone', async () => {
+      const bride = await seed({ gender: 'FEMALE', displayName: 'Quoted' });
+      await seed({ gender: 'FEMALE', displayName: 'Someone else' });
+      const viewer = await seed({ gender: 'MALE' });
+
+      const { items } = await search.search(viewer.userId, {
+        q: profileDisplayId(bride.profileId),
+      });
+      expect(items.map((i) => i.displayName)).toEqual(['Quoted']);
+    });
+
+    it('reads a quoted id however it was typed', async () => {
+      const bride = await seed({ gender: 'FEMALE', displayName: 'Quoted' });
+      const viewer = await seed({ gender: 'MALE' });
+
+      // Nobody retypes an id with the case they were shown it in.
+      const { items } = await search.search(viewer.userId, {
+        q: profileDisplayId(bride.profileId).toLowerCase(),
+      });
+      expect(items.map((i) => i.displayName)).toEqual(['Quoted']);
+    });
+
+    it('finds a profile by part of a name', async () => {
+      await seed({ gender: 'FEMALE', displayName: 'Meenakshi' });
+      await seed({ gender: 'FEMALE', displayName: 'Kavya' });
+      const viewer = await seed({ gender: 'MALE' });
+
+      const { items } = await search.search(viewer.userId, { q: 'eena' });
+      expect(items.map((i) => i.displayName)).toEqual(['Meenakshi']);
+    });
+
+    /**
+     * The one that matters. A display id is seven hex characters off a
+     * screenshot, so if quoting one reached past the search rules, sharing an
+     * id would be enough to defeat both of them.
+     */
+    it('will not let a quoted id reach a profile the rules hide', async () => {
+      const groom = await seed({ gender: 'MALE', displayName: 'Wrong gender' });
+      const draft = await seed({
+        gender: 'FEMALE',
+        displayName: 'Unpublished',
+        publish: false,
+      });
+      const viewer = await seed({ gender: 'MALE' });
+
+      for (const hidden of [groom, draft]) {
+        const { items } = await search.search(viewer.userId, {
+          q: profileDisplayId(hidden.profileId),
+        });
+        expect(items).toHaveLength(0);
+      }
+    });
+
+    it('treats a term with regex characters as text, not as a pattern', async () => {
+      await seed({ gender: 'FEMALE', displayName: 'Anita' });
+      const viewer = await seed({ gender: 'MALE' });
+
+      // Unescaped, '.*' matches every name there is; escaped, it matches a
+      // profile literally called ".*", of which there are none.
+      const { items } = await search.search(viewer.userId, { q: '.*' });
+      expect(items).toHaveLength(0);
+    });
+
+    it('returns nothing rather than failing on an id that matches no one', async () => {
+      await seed({ gender: 'FEMALE' });
+      const viewer = await seed({ gender: 'MALE' });
+
+      const { items } = await search.search(viewer.userId, { q: 'EH0000000' });
       expect(items).toHaveLength(0);
     });
   });
@@ -1019,6 +1097,196 @@ describe('Matrimony (e2e)', () => {
       await interests.shortlist(groom.userId, bride.profileId);
       const { items } = await search.search(groom.userId, {});
       expect(items[0]!.shortlisted).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------- dashboard
+
+  /**
+   * The dashboard is read far more often than anything else here, and every
+   * number on it is a claim about somebody's relationships. A count that is
+   * wrong by one is worse than a count that is missing, so these check the
+   * direction of each one rather than merely that a number came back.
+   */
+  describe('dashboard', () => {
+    it('counts each relation from the right side', async () => {
+      const bride = await seed({ gender: 'FEMALE', displayName: 'Subject' });
+      const [a, b, c, d, e] = await Promise.all([
+        seed({ gender: 'MALE' }),
+        seed({ gender: 'MALE' }),
+        seed({ gender: 'MALE' }),
+        seed({ gender: 'MALE' }),
+        seed({ gender: 'MALE' }),
+      ]);
+
+      // Two unanswered, one accepted, one declined.
+      await interests.send(a!.userId, { toProfileId: bride.profileId });
+      await interests.send(b!.userId, { toProfileId: bride.profileId });
+
+      const fromC = await interests.send(c!.userId, { toProfileId: bride.profileId });
+      await interests.accept(bride.userId, fromC.id);
+
+      const fromD = await interests.send(d!.userId, { toProfileId: bride.profileId });
+      await interests.decline(bride.userId, fromD.id);
+
+      // One of her own, still unanswered.
+      await interests.send(bride.userId, { toProfileId: e!.profileId });
+
+      // She saves two; two others save her.
+      await interests.shortlist(bride.userId, a!.profileId);
+      await interests.shortlist(bride.userId, b!.profileId);
+      await interests.shortlist(c!.userId, bride.profileId);
+      await interests.shortlist(d!.userId, bride.profileId);
+
+      const summary = await dashboard.summary(bride.userId);
+
+      expect(summary.interests.received).toBe(2);
+      expect(summary.interests.awaitingReply).toBe(1);
+      expect(summary.interests.accepted).toBe(1);
+      // The decline was hers to give, so it is not hers to be counted for.
+      expect(summary.interests.declined).toBe(0);
+      expect(summary.shortlist.saved).toBe(2);
+      expect(summary.shortlist.savedBy).toBe(2);
+    });
+
+    it('counts a declined interest against whoever sent it', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+
+      const sent = await interests.send(groom.userId, { toProfileId: bride.profileId });
+      await interests.decline(bride.userId, sent.id);
+
+      const his = await dashboard.summary(groom.userId);
+      expect(his.interests.declined).toBe(1);
+      expect(his.interests.awaitingReply).toBe(0);
+    });
+
+    it('accepts in either direction counts as one match for both', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+
+      const sent = await interests.send(groom.userId, { toProfileId: bride.profileId });
+      await interests.accept(bride.userId, sent.id);
+
+      expect((await dashboard.summary(bride.userId)).interests.accepted).toBe(1);
+      expect((await dashboard.summary(groom.userId)).interests.accepted).toBe(1);
+    });
+
+    it('answers a member with no profile instead of refusing', async () => {
+      const user = await userModel.create({
+        fullName: 'Not Started',
+        mobile: String((mobileCounter += 1)),
+        roles: ['SEEKER'],
+        status: 'ACTIVE',
+      });
+
+      const summary = await dashboard.summary(user.id as string);
+
+      // The screen that explains how to get a profile must not require one.
+      expect(summary.profile).toBeNull();
+      expect(summary.interests.received).toBe(0);
+      expect(summary.shortlist.savedBy).toBe(0);
+      expect(summary.chat).toEqual({ threads: 0, unread: 0 });
+      // The free allowance is worth showing to somebody still deciding.
+      expect(summary.interests.dailyLimit).toBe(FREE_DAILY_INTEREST_QUOTA);
+    });
+
+    it('carries the profile id families read down the phone', async () => {
+      const bride = await seed({ gender: 'FEMALE', displayName: 'Subject' });
+
+      const summary = await dashboard.summary(bride.userId);
+
+      expect(summary.profile?.displayId).toBe(profileDisplayId(bride.profileId));
+      expect(summary.profile?.displayId).toMatch(/^EH[0-9A-F]{7}$/);
+      expect(summary.profile?.status).toBe(ProfileStatus.ACTIVE);
+      expect(summary.profile?.completeness).toBeGreaterThan(0);
+    });
+
+    it('reports who saved you as a count and nothing else', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const admirer = await seed({ gender: 'MALE', displayName: 'Admirer' });
+
+      await interests.shortlist(admirer.userId, bride.profileId);
+
+      const summary = await dashboard.summary(bride.userId);
+
+      // A shortlist is private to whoever made it. The number encourages;
+      // the identity behind it must not travel with it.
+      expect(summary.shortlist.savedBy).toBe(1);
+      expect(JSON.stringify(summary)).not.toContain(admirer.profileId);
+      expect(JSON.stringify(summary)).not.toContain('Admirer');
+    });
+  });
+
+  // ------------------------------------------------------------------- gender
+
+  /**
+   * Opposite gender only, enforced on the server.
+   *
+   * Search has always filtered on it, but a filter in a query is a convenience,
+   * not a rule: the profile id is in the URL of every profile page, and
+   * anything that can POST can post one. These pin the rule to the write paths,
+   * where it is the difference between a product assumption and an assertion.
+   */
+  describe('gender', () => {
+    it('returns only the opposite gender from search, both ways', async () => {
+      await seed({ gender: 'FEMALE', displayName: 'Bride' });
+      const groom = await seed({ gender: 'MALE', displayName: 'Groom' });
+      const bride = await seed({ gender: 'FEMALE', displayName: 'Another bride' });
+
+      const forGroom = await search.search(groom.userId, {});
+      const forBride = await search.search(bride.userId, {});
+
+      expect(forGroom.items.length).toBeGreaterThan(0);
+      expect(forBride.items.length).toBeGreaterThan(0);
+
+      const genderOf = async (id: string) =>
+        (await profileModel.findById(id))!.gender;
+
+      for (const item of forGroom.items) {
+        expect(await genderOf(item.id)).toBe('FEMALE');
+      }
+      for (const item of forBride.items) {
+        expect(await genderOf(item.id)).toBe('MALE');
+      }
+    });
+
+    it('refuses an interest sent to the same gender', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const otherBride = await seed({ gender: 'FEMALE' });
+
+      await expect(
+        interests.send(bride.userId, { toProfileId: otherBride.profileId }),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.VALIDATION_FAILED },
+      });
+
+      expect(await interestModel.countDocuments({})).toBe(0);
+    });
+
+    it('refuses a shortlist of the same gender', async () => {
+      const groom = await seed({ gender: 'MALE' });
+      const otherGroom = await seed({ gender: 'MALE' });
+
+      await expect(
+        interests.shortlist(groom.userId, otherGroom.profileId),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.VALIDATION_FAILED },
+      });
+
+      expect(await shortlistModel.countDocuments({})).toBe(0);
+    });
+
+    it('still allows the opposite gender through both paths', async () => {
+      const bride = await seed({ gender: 'FEMALE' });
+      const groom = await seed({ gender: 'MALE' });
+
+      await expect(
+        interests.send(groom.userId, { toProfileId: bride.profileId }),
+      ).resolves.toBeDefined();
+      await expect(
+        interests.shortlist(groom.userId, bride.profileId),
+      ).resolves.toBeUndefined();
     });
   });
 });

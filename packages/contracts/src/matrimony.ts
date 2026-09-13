@@ -1,5 +1,6 @@
 import type { Paisa } from './common.js';
 import type { InterestStatus, PhotoPrivacy, ProfileStatus } from './enums.js';
+import type { PlanCode } from './subscriptions.js';
 
 /** Who is actually operating the account. It changes the tone of every message. */
 export const ProfileManagedBy = {
@@ -42,7 +43,23 @@ export interface CareerDetails {
   employer?: string | null;
   /** Integer paisa per year. Shown as a band, never as an exact figure. */
   annualIncome?: Paisa | null;
+  /** Whole years. Sits beside the income band and gives it context. */
+  yearsOfExperience?: number | null;
+  /**
+   * What the member has actually done - a promotion, a degree, a business they
+   * built. Optional, and shown to another member only once interest is mutual.
+   *
+   * This is the part that is hard to fake convincingly and easy to check once
+   * two families are talking, which is why it earns completeness rather than
+   * being required: a profile that volunteers verifiable specifics is a
+   * different proposition from one that volunteers none.
+   */
+  achievements?: string[];
 }
+
+/** Six is enough to show a career; past that it is a CV nobody reads. */
+export const MAX_ACHIEVEMENTS = 6;
+export const MAX_ACHIEVEMENT_LENGTH = 160;
 
 /**
  * How well off the family is, in the words Indian matrimony sites use.
@@ -127,6 +144,86 @@ export interface ProfilePrivacy {
   showContact: 'ON_MUTUAL_INTEREST' | 'MEMBERS_ONLY';
 }
 
+/**
+ * The quotable profile id, derived from the record id rather than stored.
+ *
+ * Families read these out to each other over the phone, which is why the
+ * listing shows one at all. It lives in contracts because it appears on the
+ * search cards and in the member's own profile menu, and two copies of the
+ * rule would eventually disagree about which id a member has.
+ */
+export const profileDisplayId = (id: string): string =>
+  `EH${id.slice(-7).toUpperCase()}`;
+
+/**
+ * The hex tail a quoted profile id stands for, or null if this is not one.
+ *
+ * The id families read down the phone is derived, not stored, so a lookup has
+ * to run the other way: recover the seven hex characters and find the record
+ * whose id ends in them. Anything that is not exactly EH plus seven hex digits
+ * is somebody's name rather than an id, and comes back null so the caller
+ * searches text instead of running an id query that cannot match.
+ *
+ * Case is normalised here rather than at each call site - the id is displayed
+ * uppercase and typed however the person holding it happens to type it.
+ */
+export const parseProfileDisplayId = (term: string): string | null => {
+  const match = /^eh([0-9a-f]{7})$/i.exec(term.trim());
+  return match?.[1]?.toLowerCase() ?? null;
+};
+
+/**
+ * The oldest a profile may be, which is a typo guard rather than a policy.
+ *
+ * Nobody is turned away for being old; a date of birth that makes somebody 120
+ * is a mistyped year, and catching it at entry is far kinder than letting it
+ * through and having the age show up wrong on every card. The floor is
+ * MIN_AGE_BY_GENDER, which is a legal limit rather than a guard.
+ */
+export const MAX_AGE = 100;
+
+/** Completed years between a date of birth and a given day. */
+export const ageOn = (dateOfBirth: string | Date, on: Date = new Date()): number => {
+  const dob = new Date(dateOfBirth);
+  let age = on.getFullYear() - dob.getFullYear();
+  const monthDelta = on.getMonth() - dob.getMonth();
+  // Not had this year's birthday yet, so a year has not completed.
+  if (monthDelta < 0 || (monthDelta === 0 && on.getDate() < dob.getDate())) age -= 1;
+  return age;
+};
+
+/**
+ * Why this date of birth cannot be used, or null if it can.
+ *
+ * Returned as a message rather than a boolean so the form and the API say the
+ * same thing for the same reason - a field that rejects a value without saying
+ * which rule it broke is a field people retype at random.
+ *
+ * It lives in contracts because both sides have to agree: a rule the browser
+ * enforces and the server does not is a suggestion, and one the server
+ * enforces and the browser does not is a form that fails on submit.
+ */
+export const dateOfBirthError = (
+  dateOfBirth: string,
+  gender: Gender,
+  on: Date = new Date(),
+): string | null => {
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return 'Enter a valid date of birth';
+  if (dob.getTime() > on.getTime()) return 'Date of birth cannot be in the future';
+
+  const age = ageOn(dob, on);
+  if (age > MAX_AGE) return `Check the year - that is over ${MAX_AGE} years ago`;
+
+  const min = MIN_AGE_BY_GENDER[gender];
+  if (age < min) {
+    return gender === 'MALE'
+      ? `A groom must be at least ${min}`
+      : `A bride must be at least ${min}`;
+  }
+  return null;
+};
+
 export interface MatrimonyProfileDto {
   id: string;
   userId: string;
@@ -183,6 +280,14 @@ export interface ProfileCardDto {
   city: string;
   education: string;
   occupation: string;
+  /**
+   * On the card because a matrimony listing is read as a row of particulars,
+   * and these two are the first things a family checks after the photo. Leaving
+   * them to the detail page means opening every profile to rule most of them
+   * out.
+   */
+  motherTongue: string;
+  maritalStatus: MaritalStatus;
   /** Null when the viewer has not earned the right to see the photo. */
   photoUrl?: string | null;
   photosBlurred: boolean;
@@ -195,13 +300,22 @@ export interface ProfileCardDto {
 
 export interface ProfileDetailDto extends ProfileCardDto {
   managedBy: ProfileManagedBy;
-  maritalStatus: MaritalStatus;
-  motherTongue: string;
   gotra?: string | null;
   diet: Diet;
   about?: string | null;
   educationDetails: EducationDetails;
-  career: Omit<CareerDetails, 'annualIncome'> & { incomeBand?: string | null };
+  /**
+   * Career as another member sees it.
+   *
+   * The exact salary is reduced to a band, as it always was. Achievements are
+   * absent rather than blanked until interest is mutual - the same rule contact
+   * details follow, and for the same reason: they are the detail two families
+   * exchange once they are actually talking, not a shop window.
+   */
+  career: Omit<CareerDetails, 'annualIncome' | 'achievements'> & {
+    incomeBand?: string | null;
+    achievements?: string[];
+  };
   family: FamilyDetails;
   lifestyle: LifestyleDetails;
   hobbies: string[];
@@ -273,6 +387,14 @@ export interface ProfileSearchQuery {
   excludeGotras?: string[];
   /** Only profiles that clear this guna score. Requires the viewer's horoscope. */
   minGunaScore?: number;
+  /**
+   * A quoted profile id (EHCD97D7D) or part of a name.
+   *
+   * One field carries both because that is how it gets used: somebody either
+   * has an id in front of them or remembers a name, and making them say which
+   * before they can type is a question the server can answer for itself.
+   */
+  q?: string;
   sort?: 'recent' | 'guna' | 'age';
   page?: number;
   limit?: number;
@@ -303,6 +425,71 @@ export interface ShortlistEntryDto {
   note?: string | null;
   addedAt: string;
   profile: ProfileCardDto;
+}
+
+/**
+ * Everything a member needs at a glance, as counts.
+ *
+ * Deliberately numbers rather than rows. The dashboard exists to answer one
+ * question - "is anything waiting for me?" - and that question is answered by a
+ * count. Loading the profiles behind each number would make the screen people
+ * open first the slowest one in the product, to show them a preview of a list
+ * they are one click away from anyway.
+ */
+export interface MatrimonyDashboardDto {
+  /**
+   * Null before a profile exists at all. The dashboard is readable in that
+   * state on purpose: it is the screen that should explain what to do next,
+   * so it must not be the screen that refuses to load until you already have.
+   */
+  profile: {
+    id: string;
+    /** The EH… id families read out over the phone. */
+    displayId: string;
+    displayName: string;
+    status: ProfileStatus;
+    /** 0-100. */
+    completeness: number;
+    photoUrl: string | null;
+    verified: boolean;
+  } | null;
+  interests: {
+    /** Incoming and unanswered. The only count here that is a to-do. */
+    received: number;
+    /** Sent by the member, still unanswered. */
+    awaitingReply: number;
+    /** Accepted in either direction - once it is mutual, who asked first stops mattering. */
+    accepted: number;
+    /** Sent by the member and turned down. */
+    declined: number;
+    /** Sent today, against the plan's daily allowance. */
+    sentToday: number;
+    /** Null on an unlimited plan, which is not the same as zero. */
+    dailyLimit: number | null;
+  };
+  shortlist: {
+    /** Profiles the member saved. */
+    saved: number;
+    /**
+     * How many members saved this profile. A count and never names: who is
+     * quietly considering you is exactly the thing a shortlist keeps private,
+     * and the number is encouragement without being a disclosure.
+     */
+    savedBy: number;
+  };
+  chat: {
+    threads: number;
+    unread: number;
+  };
+  plan: {
+    code: PlanCode;
+    name: string;
+    isPaid: boolean;
+    /** Null on the free plan, which never ends. */
+    expiresAt: string | null;
+    /** Whole days. Negative once lapsed. */
+    daysLeft: number | null;
+  };
 }
 
 // ---------------------------------------------------------------------------

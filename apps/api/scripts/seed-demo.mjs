@@ -30,6 +30,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -135,6 +136,92 @@ for (const [gender, folder] of [['FEMALE', 'female'], ['MALE', 'male']]) {
     if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) continue;
     FACES[gender].push({ bytes: readFileSync(join(dir, name)), ext: ext.slice(1) });
   }
+}
+
+/**
+ * Portraits served straight from the web app, not through the media API.
+ *
+ * apps/web/public is copied to the site root, so a file dropped at
+ * public/matrimony/profile/male/Balla/Balla_001.jpg is already reachable at
+ * /matrimony/profile/male/Balla/Balla_001.jpg. Pointing a profile at that path
+ * needs no upload, no minted key and no copy into var/uploads - the seed just
+ * records the URL it already has.
+ *
+ * One folder per person, so a profile keeps the same face across all of its
+ * photos rather than being handed an arbitrary one from a pool. Folders are
+ * read in sorted order, so a reseed puts the same person on the same profile.
+ *
+ * The trade-off is deliberate and worth stating where it is made: a path like
+ * this is readable by anyone who types it, where a minted media key is not.
+ * That is fine for demo portraits and is not how a real member upload should
+ * ever be stored - those keep going through the media pipeline, where the
+ * unguessable key is what actually enforces "photos on mutual interest".
+ */
+const PUBLIC_FACES = { FEMALE: [], MALE: [] };
+const PHOTO_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
+
+for (const [gender, folder] of [['FEMALE', 'female'], ['MALE', 'male']]) {
+  const dir = join(here, '..', '..', 'web', 'public', 'matrimony', 'profile', folder);
+  if (!existsSync(dir)) continue;
+  for (const person of readdirSync(dir).sort()) {
+    const personDir = join(dir, person);
+    if (!statSync(personDir).isDirectory()) continue;
+    const shots = readdirSync(personDir)
+      .sort()
+      .filter((f) => PHOTO_EXTS.includes(f.toLowerCase().slice(f.lastIndexOf('.'))))
+      .map((f) => '/matrimony/profile/' + folder + '/' + encodeURIComponent(person) + '/' + encodeURIComponent(f));
+    if (shots.length) PUBLIC_FACES[gender].push(shots);
+  }
+}
+
+// One cursor per gender. A single shared cursor advanced on every profile,
+// including the ones drawing from the other gender's set, so with an even
+// stride it only ever landed on half of one side - eighteen women on disk,
+// nine of them ever used.
+const publicFaceCursor = { FEMALE: 0, MALE: 0 };
+
+/** The next person's photo set for this gender, or null if none were dropped in. */
+function nextPublicPerson(gender) {
+  const set = PUBLIC_FACES[gender] ?? [];
+  if (set.length === 0) return null;
+  return set[publicFaceCursor[gender]++ % set.length];
+}
+
+/**
+ * A profile's photos: the public folder first, then the ingested face pool,
+ * then a drawn silhouette. Each step degrades rather than breaks, so emptying
+ * any of these folders changes how the demo looks and never fails the seed.
+ */
+function buildPhotos(gender, photoColour, photoModeration) {
+  const person = nextPublicPerson(gender);
+  if (person) {
+    return person.map((url, i) => ({
+      id: randomUUID(),
+      // No storageKey: nothing was put into storage, so there is nothing to
+      // delete from it. The file belongs to the web app, not to the media API.
+      url,
+      isPrimary: i === 0,
+      moderation: photoModeration,
+    }));
+  }
+
+  const stored =
+    storeFace(gender) ??
+    storeImage('profile-photos', photoColour, {
+      width: 480,
+      height: 600,
+      render: (w, h, c) => portraitPng(w, h, c, gender === 'FEMALE'),
+    });
+
+  return [
+    {
+      id: randomUUID(),
+      storageKey: stored.key,
+      url: stored.url,
+      isPrimary: true,
+      moderation: photoModeration,
+    },
+  ];
 }
 
 let faceCursor = 0;
@@ -943,29 +1030,7 @@ async function profile({
       rashi,
       marsHouse,
     },
-    photos: photoColour
-      ? [
-          (() => {
-            // A generated portrait when the faces folder has one, and the
-            // drawn silhouette when it does not - so removing those files
-            // degrades the demo rather than breaking the seed.
-            const stored =
-              storeFace(gender) ??
-              storeImage('profile-photos', photoColour, {
-                width: 480,
-                height: 600,
-                render: (w, h, c) => portraitPng(w, h, c, gender === 'FEMALE'),
-              });
-            return {
-              id: randomUUID(),
-              storageKey: stored.key,
-              url: stored.url,
-              isPrimary: true,
-              moderation: photoModeration,
-            };
-          })(),
-        ]
-      : [],
+    photos: photoColour ? buildPhotos(gender, photoColour, photoModeration) : [],
     privacy: { photos: 'MEMBERS_ONLY', showContact: 'ON_MUTUAL_INTEREST' },
     status: 'ACTIVE',
     completeness: 90,
@@ -1192,9 +1257,13 @@ for (const [religion, communities] of Object.entries(COMMUNITIES_BY_RELIGION)) {
       const region = REGION_OF.get(community) ?? { tongue: 'Hindi', city: 'Delhi' };
       const [occupation, qualification] = JOBS[n % JOBS.length];
 
-      // Most photos approved, a few pending so the moderation queue has a queue,
-      // and a few with none at all so the empty tile state is visible too.
-      const photoState = n % 7;
+      // Everyone gets a face. Holding a seventh of the set back with no photo
+      // at all, and a seventh more behind PENDING moderation - which a card
+      // filters out just the same - left close to a third of any grid blank.
+      // At that density the empty tile stops reading as one member who has not
+      // uploaded yet and starts reading as a gallery that failed to load. The
+      // moderation queue still wants rows, so a thin slice stays pending.
+      const photoPending = n % 29 === 5;
 
       await profile({
         owner: `${names[n % names.length]} ${community}`,
@@ -1213,8 +1282,8 @@ for (const [religion, communities] of Object.entries(COMMUNITIES_BY_RELIGION)) {
         nakshatra: 1 + (n % 27),
         rashi: 1 + (n % 12),
         marsHouse: null,
-        photoColour: photoState === 6 ? null : SWATCHES[n % SWATCHES.length],
-        photoModeration: photoState === 5 ? 'PENDING' : 'APPROVED',
+        photoColour: SWATCHES[n % SWATCHES.length],
+        photoModeration: photoPending ? 'PENDING' : 'APPROVED',
         about: `${occupation} from ${region.city}. Family is originally from the same district, and looking for someone settled nearby.`,
       });
       n++;

@@ -1,12 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { httpResource } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
-import { MatToolbarModule } from '@angular/material/toolbar';
 import type { VendorDto } from '@eventhub/contracts';
 
 import { NotificationBell } from '../../../core/components/notification-bell';
-import { PortalSwitcher } from '../../../core/components/portal-switcher';
+import { WeddingMasthead } from '../../../core/components/wedding-masthead';
 import { AuthStore } from '../../auth/data/auth.store';
 import { VendorApi, unwrap } from '../data/vendor-api';
 
@@ -17,6 +16,13 @@ import { VendorApi, unwrap } from '../data/vendor-api';
  * verification is what stands between a vendor and getting paid - burying that
  * behind a menu is how a vendor quotes for a week before discovering they
  * cannot accept anything.
+ *
+ * The chrome is the shared masthead. This console used to carry a dark green
+ * bar of its own, which was the last place in the product still outside the
+ * single theme: a vendor who clicks through to their own public listing should
+ * not feel they have changed sites. Context is 'console', so the strip above
+ * offers the way back to the public site rather than a cross-sell nobody
+ * working in here wants.
  */
 @Component({
   selector: 'eh-vendor-shell',
@@ -26,18 +32,12 @@ import { VendorApi, unwrap } from '../data/vendor-api';
     RouterLink,
     RouterLinkActive,
     MatButtonModule,
-    MatToolbarModule,
     NotificationBell,
-    PortalSwitcher,
+    WeddingMasthead,
   ],
   template: `
-    <mat-toolbar class="bar">
-      <a class="brand" routerLink="/vendor/enquiries">
-        <span class="mark">EH</span>
-        <span class="name">Vendor</span>
-      </a>
-
-      <nav class="nav">
+    <eh-wedding-masthead context="console">
+      <nav class="nav" bar-nav>
         <a routerLink="/vendor/enquiries" routerLinkActive="on">Enquiries</a>
         <a routerLink="/vendor/calendar" routerLinkActive="on">Calendar</a>
         <a routerLink="/vendor/services" routerLinkActive="on">Catalogue</a>
@@ -45,18 +45,27 @@ import { VendorApi, unwrap } from '../data/vendor-api';
         <a routerLink="/vendor/onboarding" routerLinkActive="on">Business</a>
       </nav>
 
-      <a class="account" routerLink="/account" title="Account settings">Account</a>
+      <span class="end" bar-end>
+        <!--
+          The verification state stays in the bar rather than moving into the
+          avatar menu. It is the one fact on this screen that decides whether
+          the rest of the console can do anything at all.
+        -->
+        @if (vendor.value(); as v) {
+          <span class="kyc" [class]="tone(v)">{{ kycLabel(v) }}</span>
+        }
 
-      <eh-portal-switcher />
+        <a
+          class="avatar"
+          routerLink="/account"
+          [attr.aria-label]="'Account settings, ' + store.displayName()"
+          [title]="store.displayName()"
+        >{{ initials() }}</a>
 
-      <span class="spacer"></span>
-
-      @if (vendor.value(); as v) {
-        <span class="kyc" [class]="tone(v)">{{ kycLabel(v) }}</span>
-      }
-      <eh-notification-bell />
-      <button mat-stroked-button class="out" (click)="store.logout()">Sign out</button>
-    </mat-toolbar>
+        <eh-notification-bell />
+        <button mat-stroked-button class="out" (click)="store.logout()">Sign out</button>
+      </span>
+    </eh-wedding-masthead>
 
     @if (vendor.value(); as v) {
       @if (v.kycStatus !== 'VERIFIED') {
@@ -79,31 +88,63 @@ import { VendorApi, unwrap } from '../data/vendor-api';
     <router-outlet />
   `,
   styles: `
-    .bar { position: sticky; top: 0; z-index: 10; background: #1f3d2b; color: #fff;
-           gap: 1.5rem; box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); }
-    .brand { display: flex; align-items: center; gap: 0.6rem; color: inherit; text-decoration: none; }
-    .mark { font-weight: 800; font-size: 0.75rem; letter-spacing: 0.05em;
-            background: #fff; color: #1f3d2b; border-radius: 5px; padding: 0.2rem 0.4rem; }
-    .name { font-size: 1rem; font-weight: 600; }
-    .nav { display: flex; gap: 1rem; }
-    .nav a { color: rgb(255 255 255 / 0.75); text-decoration: none; font-size: 0.9rem;
-             padding: 0.35rem 0; border-bottom: 2px solid transparent; }
-    .nav a.on, .nav a:hover { color: #fff; border-bottom-color: #ffb703; }
-    .spacer { flex: 1 1 auto; }
-    .account { color: rgb(255 255 255 / 0.75); text-decoration: none;
-              font-size: 0.9rem; white-space: nowrap; }
-    .account:hover { color: #fff; }
+    /*
+     * These style content projected INTO the masthead. Projected nodes keep
+     * this component's encapsulation, not the masthead's, so the rules have to
+     * live here - the masthead lays the slots out, this decides what fills them.
+     */
+    .nav { display: flex; align-items: stretch; gap: 1rem; }
+    .nav a { color: rgb(255 255 255 / 0.85); text-decoration: none; font-size: 0.92rem;
+             display: flex; align-items: center; padding: 0.75rem 0;
+             border-bottom: 2px solid transparent; white-space: nowrap; }
+    .nav a.on, .nav a:hover { color: #fff; border-bottom-color: #fff; }
+
+    .end { display: flex; align-items: center; gap: 0.9rem; }
+
+    .avatar { display: grid; place-items: center; width: 2.2rem; height: 2.2rem;
+              border-radius: 50%; text-decoration: none;
+              background: rgb(255 255 255 / 0.16);
+              border: 2px solid rgb(255 255 255 / 0.55);
+              color: #fff; font-size: 0.78rem; font-weight: 700; }
+    .avatar:hover, .avatar:focus-visible { border-color: #fff; }
+
     .kyc { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-           letter-spacing: 0.04em; padding: 0.2rem 0.5rem; border-radius: 999px; }
+           letter-spacing: 0.04em; padding: 0.2rem 0.5rem; border-radius: 999px;
+           white-space: nowrap; }
     .kyc.good { background: #e6f4ea; color: #1b5e20; }
     .kyc.warn { background: #fbf1dc; color: #8a5a00; }
     .kyc.bad { background: #fdecea; color: #b3261e; }
-    .out { --mdc-outlined-button-label-text-color: #fff;
-           border-color: rgb(255 255 255 / 0.5) !important; }
+
+    /* The Material token alone is not enough here: the theme's own label colour
+       wins, and on the maroon bar that renders as pink on maroon - technically
+       present, practically unreadable. */
+    /* nowrap: the label is two words and the bar is tight on a phone. */
+    .out { white-space: nowrap;
+           --mdc-outlined-button-label-text-color: #fff;
+           color: #fff !important;
+           border-color: rgb(255 255 255 / 0.55) !important; }
+
     .banner { background: #fbf1dc; border-bottom: 1px solid #f2dcae; color: #6b4600;
               padding: 0.7rem 1.25rem; font-size: 0.88rem; }
     .banner a { color: #6b4600; margin-left: 0.4rem; }
-    @media (max-width: 640px) { .name { display: none; } }
+
+    /*
+     * Inside the masthead's narrow-screen panel the links stack. They are
+     * projected, so the masthead cannot restyle them - the shell that owns them
+     * has to, and the breakpoint has to match the one the masthead collapses at.
+     */
+    @media (max-width: 60rem) {
+      .nav { flex-direction: column; align-items: stretch; gap: 0; }
+      .nav a { padding: 0.65rem 0.25rem; border-bottom: none;
+               border-left: 3px solid transparent; padding-left: 0.6rem; }
+      .nav a.on, .nav a:hover { border-bottom-color: transparent;
+                                border-left-color: #fff;
+                                background: rgb(255 255 255 / 0.1); }
+    }
+
+    @media (max-width: 640px) {
+      .kyc { display: none; }
+    }
   `,
 })
 export class VendorShell {
@@ -116,6 +157,13 @@ export class VendorShell {
    */
   protected readonly vendor = httpResource<VendorDto>(() => this.api.meUrl, {
     parse: unwrap<VendorDto>,
+  });
+
+  /** Two letters from the name, so the avatar says something without a photo. */
+  protected readonly initials = computed(() => {
+    const parts = this.store.displayName().trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '—';
+    return (parts[0][0] + (parts.at(-1)?.[0] ?? '')).toUpperCase();
   });
 
   protected readonly kycLabel = (v: VendorDto): string =>

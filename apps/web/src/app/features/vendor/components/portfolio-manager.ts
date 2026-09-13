@@ -113,12 +113,12 @@ import type { AppError } from '../../../core/models/app-error';
     .tile { margin: 0; border: 1px solid rgb(0 0 0 / 0.12); border-radius: 10px;
             background: #fff; overflow: hidden; display: flex;
             flex-direction: column; gap: 0.3rem; padding-bottom: 0.35rem; }
-    .tile.cover { border-color: #2f2d78; box-shadow: 0 0 0 1px #2f2d78 inset; }
+    .tile.cover { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
     .tile img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
                 background: rgb(0 0 0 / 0.05); }
     figcaption { padding: 0 0.5rem; }
     .chip { font-size: 0.68rem; padding: 0.12rem 0.45rem; border-radius: 999px;
-            font-weight: 600; background: #e6e5f5; color: #2f2d78; }
+            font-weight: 600; background: #e6e5f5; color: var(--brand); }
     .caption { margin: 0; padding: 0 0.5rem; font-size: 0.78rem;
                color: rgb(0 0 0 / 0.65); }
     .actions { display: flex; flex-wrap: wrap; padding: 0 0.25rem; margin-top: auto; }
@@ -128,7 +128,7 @@ import type { AppError } from '../../../core/models/app-error';
            border-style: dashed; aspect-ratio: 4 / 3; }
     .add input { position: absolute; width: 1px; height: 1px; opacity: 0;
                  pointer-events: none; }
-    .plus { font-size: 1.8rem; line-height: 1; color: #2f2d78; }
+    .plus { font-size: 1.8rem; line-height: 1; color: var(--brand); }
     .addLabel { font-size: 0.9rem; font-weight: 600; }
     .limits { font-size: 0.7rem; color: rgb(0 0 0 / 0.5); }
     .captionField { display: flex; flex-direction: column; gap: 0.25rem;

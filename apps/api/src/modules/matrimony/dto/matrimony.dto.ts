@@ -20,6 +20,8 @@ import {
 import {
   FamilyStatus,
   HabitFrequency,
+  MAX_ACHIEVEMENTS,
+  MAX_ACHIEVEMENT_LENGTH,
   MAX_HOBBIES,
   MAX_MESSAGE_LENGTH,
   MAX_PERSONAL_INTERESTS,
@@ -42,6 +44,19 @@ class CareerDto {
   @IsOptional() @IsString() @MaxLength(160) employer?: string;
   /** Integer paisa per year. */
   @IsOptional() @IsInt() @Min(0) annualIncome?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(60) yearsOfExperience?: number;
+
+  /**
+   * Capped in both directions. Six keeps it a career summary rather than a CV,
+   * and 160 characters per line keeps each one a claim that can be checked
+   * rather than an essay.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_ACHIEVEMENTS)
+  @IsString({ each: true })
+  @MaxLength(MAX_ACHIEVEMENT_LENGTH, { each: true })
+  achievements?: string[];
 }
 
 class LifestyleDto {
@@ -200,6 +215,15 @@ export class ProfileSearchDto {
   excludeGotras?: string[];
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(36) minGunaScore?: number;
+
+  /**
+   * The quick lookup term: a quoted profile id, or part of a name.
+   *
+   * Capped short because neither of the two things it can be is long - an id is
+   * nine characters and a display name is a first name - and an unbounded term
+   * reaches the regex engine, where length is what makes a scan expensive.
+   */
+  @IsOptional() @IsString() @MaxLength(60) q?: string;
 
   @IsOptional() @IsIn(['recent', 'guna', 'age']) sort?: 'recent' | 'guna' | 'age';
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;

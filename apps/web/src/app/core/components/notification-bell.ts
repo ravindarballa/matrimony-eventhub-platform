@@ -81,7 +81,7 @@ interface Envelope<T> {
     header { display: flex; justify-content: space-between; align-items: center;
              padding: 0.7rem 0.9rem; border-bottom: 1px solid rgb(0 0 0 / 0.08);
              font-size: 0.85rem; position: sticky; top: 0; background: #fff; }
-    .link { border: none; background: none; color: #2f2d78; cursor: pointer;
+    .link { border: none; background: none; color: var(--brand); cursor: pointer;
             font-size: 0.78rem; padding: 0; }
     .item { display: flex; flex-direction: column; gap: 0.15rem; width: 100%;
             text-align: left; border: none; background: none; cursor: pointer;

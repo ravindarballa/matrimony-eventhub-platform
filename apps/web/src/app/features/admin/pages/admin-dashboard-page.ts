@@ -109,7 +109,7 @@ interface Envelope<T> {
     .sub { margin: 0; font-size: 0.82rem; color: rgb(0 0 0 / 0.6); }
     .muted { color: rgb(0 0 0 / 0.45); }
     .action { margin-top: auto; padding-top: 0.5rem; font-size: 0.82rem;
-              color: #2f2d78; text-decoration: none; font-weight: 600; }
+              color: var(--brand); text-decoration: none; font-weight: 600; }
     .action:hover { text-decoration: underline; }
     dl { display: grid; gap: 1rem; margin: 0;
          grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }

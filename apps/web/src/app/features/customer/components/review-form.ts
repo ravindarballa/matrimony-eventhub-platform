@@ -185,7 +185,7 @@ const ASPECTS: { key: keyof ReviewScores; label: string; hint: string }[] = [
     .stars-input { display: flex; gap: 0.1rem; }
     .star { font-size: 1.4rem; line-height: 1; background: none; border: 0; padding: 0 0.1rem;
             cursor: pointer; color: rgb(0 0 0 / 0.18); transition: color 80ms ease; }
-    .star.on { color: #e8a33d; }
+    .star.on { color: var(--star); }
     .star:hover { color: #d18f20; }
 
     .overall { margin: 0; padding-top: 0.5rem; border-top: 1px solid rgb(0 0 0 / 0.08);
@@ -197,24 +197,24 @@ const ASPECTS: { key: keyof ReviewScores; label: string; hint: string }[] = [
     .field input, .field textarea { font: inherit; font-size: 0.87rem; padding: 0.5rem 0.6rem;
                                     border: 1px solid rgb(0 0 0 / 0.24); border-radius: 7px;
                                     background: #fff; resize: vertical; }
-    .field input:focus, .field textarea:focus { outline: 2px solid #2f2d78; outline-offset: -1px; }
+    .field input:focus, .field textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
     .counter { font-size: 0.72rem; color: rgb(0 0 0 / 0.45); }
     .counter.short { color: #8a5a00; }
 
     .actions { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
-    .submit { background: #2f2d78 !important; color: #fff !important; font-weight: 600; }
+    .submit { background: var(--brand) !important; color: #fff !important; font-weight: 600; }
     .submit[disabled] { background: rgb(0 0 0 / 0.12) !important; color: rgb(0 0 0 / 0.38) !important; }
     .warn { font-size: 0.72rem; color: rgb(0 0 0 / 0.5); }
     .err { margin: 0; font-size: 0.82rem; color: #b3261e; }
 
     .done { display: flex; flex-direction: column; gap: 0.4rem; }
     .done .head { margin: 0; display: flex; align-items: baseline; gap: 0.45rem; }
-    .stars { color: #e8a33d; }
+    .stars { color: var(--star); }
     .done .body { margin: 0; font-size: 0.86rem; line-height: 1.55; color: rgb(0 0 0 / 0.8); }
     .note { margin: 0; font-size: 0.75rem; color: rgb(0 0 0 / 0.5); }
-    .reply { margin: 0.3rem 0 0; padding: 0.5rem 0.7rem; border-left: 3px solid #2f2d78;
-             background: rgb(47 45 120 / 0.04); font-size: 0.82rem; line-height: 1.5; }
-    .who { display: block; font-weight: 600; font-size: 0.72rem; color: #2f2d78; }
+    .reply { margin: 0.3rem 0 0; padding: 0.5rem 0.7rem; border-left: 3px solid var(--brand);
+             background: rgb(var(--brand-rgb) / 0.04); font-size: 0.82rem; line-height: 1.5; }
+    .who { display: block; font-weight: 600; font-size: 0.72rem; color: var(--brand); }
   `,
 })
 export class ReviewForm {

@@ -10,6 +10,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 
 import { Public } from '../../core/decorators.js';
+import { Throttle } from '../../core/throttle/throttle.guard.js';
 import { FILE_STORAGE, type FileStorage } from './storage/file-storage.interface.js';
 
 /** Keys are `<prefix>/<32 hex>.<ext>`; anything else is not one of ours. */
@@ -34,8 +35,23 @@ const KEY_NAME = /^[a-f0-9]{32}\.(jpg|png|webp)$/;
 export class MediaController {
   constructor(@Inject(FILE_STORAGE) private readonly storage: FileStorage) {}
 
+  /**
+   * Generously throttled, and deliberately so.
+   *
+   * The anonymous default is 20 requests a minute across the whole API, which
+   * is the right shape for endpoints that do work but is nonsense for images: a
+   * single visit to the category grid asks for nineteen tiles, and a listing
+   * page asks for one per card. Under the default the public marketplace broke
+   * its own photographs - the first few rendered, the rest came back 429 and
+   * drew as broken-image icons.
+   *
+   * A high ceiling rather than no ceiling. Serving a file is cheap but not
+   * free, and this is the one public endpoint that reads from disk or S3, so it
+   * stays bounded against somebody looping over it.
+   */
   @Get(':prefix/:name')
   @Public()
+  @Throttle({ limit: 600, ttlMs: 60_000 })
   @ApiOperation({ summary: 'Fetch a stored file by its key' })
   async serve(
     @Param('prefix') prefix: string,

@@ -135,7 +135,7 @@ interface Row {
              padding: 1rem 1.1rem 1.1rem; }
     header { display: flex; justify-content: space-between; gap: 1rem;
              align-items: flex-start; margin-bottom: 0.8rem; }
-    h2 { margin: 0; font-size: 1.05rem; font-weight: 600; color: #2f2d78; }
+    h2 { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--brand); }
     header p { margin: 0.25rem 0 0; font-size: 0.82rem; color: rgb(0 0 0 / 0.6); }
 
     /* The table is the one thing allowed to scroll sideways, not the page. */

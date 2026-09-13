@@ -17,10 +17,28 @@ export default [
     canActivateChild: [roleGuard('SEEKER', 'CUSTOMER', 'ADMIN')],
     children: [
       {
+        path: 'dashboard',
+        title: 'Dashboard · Matrimony EventHub',
+        loadComponent: () =>
+          import('./pages/dashboard-page').then((m) => m.MatrimonyDashboardPage),
+      },
+      {
         path: 'search',
         title: 'Find a match · Matrimony EventHub',
         loadComponent: () =>
           import('./pages/search-page').then((m) => m.MatrimonySearchPage),
+      },
+      {
+        path: 'wall',
+        title: 'Members · Matrimony EventHub',
+        loadComponent: () =>
+          import('./pages/wall-page').then((m) => m.MatrimonyWallPage),
+      },
+      {
+        path: 'videos',
+        title: 'See the work · Matrimony EventHub',
+        loadComponent: () =>
+          import('./pages/videos-page').then((m) => m.MatrimonyVideosPage),
       },
       {
         path: 'interests',
@@ -45,8 +63,16 @@ export default [
         loadComponent: () => import('./pages/plans-page').then((m) => m.PlansPage),
       },
       {
-        path: 'profile/edit',
+        // Literal, so it is declared above `profile/:id` for the same reason
+        // `profile/edit` is - otherwise "me" is read as somebody's id.
+        path: 'profile/me',
         title: 'Your profile · Matrimony EventHub',
+        loadComponent: () =>
+          import('./pages/profile-me-page').then((m) => m.MatrimonyProfileMePage),
+      },
+      {
+        path: 'profile/edit',
+        title: 'Edit your profile · Matrimony EventHub',
         loadComponent: () =>
           import('./pages/profile-edit-page').then(
             (m) => m.MatrimonyProfileEditPage,

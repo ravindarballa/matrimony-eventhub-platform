@@ -20,6 +20,7 @@ import {
   MAX_VENDOR_PHOTOS,
   PAN_REGEX,
   GSTIN_REGEX,
+  type CategoryTile,
   type KycDecisionRequest,
   type OnboardVendorRequest,
   type Paisa,
@@ -372,23 +373,56 @@ export class VendorsService {
   }
 
   /**
-   * How many bookable vendors each category has, optionally in one city.
+   * What each category has to show for itself, optionally in one city.
    *
-   * The browse page needs it to say "12 in Hyderabad" on a tile, and the point
-   * of saying so is the tiles that say "none yet". A category grid that
+   * The browse page needs the count to say "12 in Hyderabad" on a tile, and the
+   * point of saying so is the tiles that say "none yet". A category grid that
    * promises supply everywhere and opens onto an empty list teaches a visitor
    * that the whole grid is decoration.
+   *
+   * The cover photo and the cheapest price ride along for the same reason. They
+   * come from the category's best-rated vendor, so the tile is showing real
+   * work by someone actually bookable rather than stock scenery - and a family
+   * comparing categories gets something to compare. One aggregation rather than
+   * a query per tile: this runs on a public page with no auth to slow it down,
+   * which is exactly where an N+1 gets found in production.
    */
-  async categoryCounts(city?: string): Promise<{ category: string; count: number }[]> {
+  async categoryTiles(city?: string): Promise<CategoryTile[]> {
     const match: Record<string, unknown> = { isActive: true };
     if (city) match['city'] = new RegExp(`^${escapeRegex(city)}$`, 'i');
 
-    const rows = await this.vendors.aggregate<{ _id: string; count: number }>([
+    const rows = await this.vendors.aggregate<{
+      _id: string;
+      count: number;
+      portfolio?: { url: string; isCover: boolean }[];
+      priceFrom?: number | null;
+    }>([
       { $match: match },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
+      // Best-rated first, so $first below is the vendor worth showing. Ties go
+      // to the one with more reviews - a lone 5.0 is not a better shopfront
+      // than a 4.8 across forty weddings.
+      { $sort: { rating: -1, reviewCount: -1 } },
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+          portfolio: { $first: '$portfolio' },
+          // Cheapest across the whole category, not just the vendor above: the
+          // tile says "from", and the lowest price in there is what that means.
+          priceFrom: { $min: '$priceFrom' },
+        },
+      },
     ]);
 
-    return rows.map((r) => ({ category: r._id, count: r.count }));
+    return rows.map((r) => {
+      const cover = (r.portfolio ?? []).find((p) => p.isCover) ?? (r.portfolio ?? [])[0];
+      return {
+        category: r._id as CategoryTile['category'],
+        count: r.count,
+        coverUrl: cover?.url ?? null,
+        priceFrom: r.priceFrom ?? null,
+      };
+    });
   }
 
   /** Vendors whose calendar is HELD or BOOKED on that date. */

@@ -107,7 +107,7 @@ type Phase = 'opening' | 'ready' | 'paying' | 'done' | 'failed';
   styles: `
     .wrap { max-width: 32rem; margin: 3rem auto; padding: 0 1.25rem;
             display: flex; flex-direction: column; gap: 1rem; }
-    .back { font-size: 0.85rem; color: #2f2d78; text-decoration: none; }
+    .back { font-size: 0.85rem; color: var(--brand); text-decoration: none; }
     .back:hover { text-decoration: underline; }
     .card { border: 1px solid rgb(0 0 0 / 0.12); border-radius: 12px; background: #fff;
             padding: 1.75rem; display: flex; flex-direction: column; gap: 0.9rem; }

@@ -23,6 +23,9 @@ export class Career {
   @Prop({ trim: true }) employer?: string;
   /** Integer paisa per year. Never shown as an exact figure to anyone else. */
   @Prop() annualIncome?: number;
+  @Prop() yearsOfExperience?: number;
+  /** Released to another member only once interest is mutual. */
+  @Prop({ type: [String], default: [] }) achievements?: string[];
 }
 
 @Schema({ _id: false })

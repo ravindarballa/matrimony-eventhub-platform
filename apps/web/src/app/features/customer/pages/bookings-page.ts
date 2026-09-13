@@ -26,9 +26,12 @@ import { StatusChip } from '../components/status-chip';
   imports: [RouterLink, StatusChip, MatButtonModule, MatProgressBarModule],
   template: `
     <main class="wrap">
-      <header class="head">
-        <h1>Your bookings</h1>
-        <p class="sub">Vendors booked for your wedding functions.</p>
+      <header class="band">
+        <div class="lede">
+          <h1>Your bookings</h1>
+          <p class="sub">Vendors booked for your wedding functions.</p>
+        </div>
+        <a mat-flat-button class="cta" routerLink="/customer/vendors">Book another</a>
       </header>
 
       @if (bookings.isLoading()) {
@@ -48,6 +51,8 @@ import { StatusChip } from '../components/status-chip';
           A held date is released if the advance is not paid within 48 hours.
         </section>
       }
+
+      <div class="tiles">
 
       @for (booking of sorted(); track booking.id) {
         <article class="card">
@@ -100,35 +105,66 @@ import { StatusChip } from '../components/status-chip';
               Once you accept a vendor's quote, the booking appears here with its
               payment schedule.
             </p>
+            <a mat-flat-button routerLink="/customer/vendors">Find vendors</a>
           </section>
         }
       }
+      </div>
     </main>
   `,
   styles: `
-    .wrap { max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1.25rem;
-            display: flex; flex-direction: column; gap: 1rem; }
-    .head h1 { margin: 0; font-size: 1.6rem; font-weight: 600; }
-    .sub { margin: 0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
+    .wrap { max-width: 74rem; margin: 1.5rem auto 4rem; padding: 0 1.25rem;
+            display: flex; flex-direction: column; gap: 1.25rem; }
+
+    .band { display: flex; align-items: center; justify-content: space-between;
+            gap: 1.25rem; flex-wrap: wrap;
+            padding: 1.1rem 1.35rem; border-radius: 14px;
+            background: linear-gradient(120deg, var(--brand-deep), var(--brand-light));
+            color: #fff; box-shadow: 0 6px 20px rgb(var(--brand-deep-rgb) / 0.25); }
+    h1 { margin: 0; font-size: 1.45rem; font-weight: 600; }
+    .band .sub { margin: 0.3rem 0 0; color: rgb(255 255 255 / 0.85); font-size: 0.88rem; }
+    .cta { background: #fff !important; color: var(--brand-deep) !important; }
+
     .alert { background: #fbf1dc; border-left: 3px solid #c98a16;
              padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
-    .card { border: 1px solid rgb(0 0 0 / 0.12); border-radius: 10px;
+
+    /* One booking is a small card of facts and two buttons; side by side they
+       read as a list of commitments rather than as a long scroll. */
+    .tiles { display: grid; gap: 1rem;
+             grid-template-columns: repeat(auto-fill, minmax(min(23rem, 100%), 1fr)); }
+    .tiles .empty { grid-column: 1 / -1; }
+
+    .card { border: 1px solid var(--brand-line); border-radius: 12px;
             padding: 1.1rem 1.25rem; background: #fff;
-            display: flex; flex-direction: column; gap: 0.6rem; }
+            display: flex; flex-direction: column; gap: 0.6rem;
+            transition: transform 120ms ease, box-shadow 120ms ease; }
+    .card:hover { transform: translateY(-2px);
+                  box-shadow: 0 6px 16px rgb(var(--brand-rgb) / 0.12); }
     .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-    h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+    h2 { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--brand-deep); }
     .date { margin: 0.2rem 0 0; font-size: 0.88rem; color: rgb(0 0 0 / 0.7); }
-    .away { color: rgb(0 0 0 / 0.45); }
+    .away { color: rgb(0 0 0 / 0.5); }
     .hint { margin: 0; font-size: 0.85rem; color: rgb(0 0 0 / 0.6); }
-    .money { display: flex; gap: 2rem; margin: 0.2rem 0 0; flex-wrap: wrap; }
-    .money div { display: flex; flex-direction: column; gap: 0.1rem; }
-    dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
-         color: rgb(0 0 0 / 0.5); }
-    dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.3rem; }
-    .empty { text-align: center; padding: 3rem 1rem; color: rgb(0 0 0 / 0.6); }
-    .empty h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
-    .err { color: #b3261e; font-size: 0.9rem; }
+
+    /* The three figures that decide whether anything is owed, on one line. */
+    .money { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr);
+             gap: 0.5rem; padding: 0.7rem 0; border-top: 1px solid var(--brand-line);
+             border-bottom: 1px solid var(--brand-line); }
+    .money > div { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+    .money dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+                color: rgb(0 0 0 / 0.45); }
+    .money dd { margin: 0; font-size: 0.92rem; font-weight: 600;
+                color: var(--brand-ink); font-variant-numeric: tabular-nums; }
+
+    .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .err { margin: 0; padding: 0.8rem 1rem; border-radius: 8px;
+           background: #fdecea; color: #7f1d1d; font-size: 0.9rem; }
+    .empty { text-align: center; padding: 3rem 1rem; color: rgb(0 0 0 / 0.6);
+             display: flex; flex-direction: column; gap: 0.5rem; align-items: center;
+             border: 1px dashed var(--brand-line); border-radius: 12px; }
+    .empty h2 { font-size: 1.1rem; margin: 0; }
+
+    @media (max-width: 560px) { .band { flex-direction: column; align-items: flex-start; } }
   `,
 })
 export class BookingsPage {

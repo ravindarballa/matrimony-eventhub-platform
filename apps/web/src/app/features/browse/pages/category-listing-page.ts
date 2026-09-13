@@ -21,16 +21,9 @@ import {
 
 import { CITIES } from '../data/cities';
 import { BrowseCard } from '../components/browse-card';
-
-/** Price bands in rupees, which is how a family says a budget out loud. */
-const PRICE_BANDS: { label: string; max: number | null }[] = [
-  { label: 'Any budget', max: null },
-  { label: 'Under ₹50,000', max: 50_000 },
-  { label: 'Under ₹1 lakh', max: 1_00_000 },
-  { label: 'Under ₹3 lakh', max: 3_00_000 },
-  { label: 'Under ₹5 lakh', max: 5_00_000 },
-  { label: 'Under ₹10 lakh', max: 10_00_000 },
-];
+import { FilterRail } from '../components/filter-rail';
+import { WeddingMasthead } from '../../../core/components/wedding-masthead';
+import { HERO_IMAGE } from '../../home/components/home-hero';
 
 /**
  * One category's vendors, with the filters down the side.
@@ -47,23 +40,32 @@ const PRICE_BANDS: { label: string; max: number | null }[] = [
 @Component({
   selector: 'eh-category-listing-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, BrowseCard],
+  imports: [RouterLink, BrowseCard, WeddingMasthead, FilterRail],
   template: `
-    <main class="wrap">
-      <nav class="crumbs">
-        <a routerLink="/vendors">All categories</a>
-        <span aria-hidden="true">›</span>
-        <span>{{ meta().plural }}</span>
-      </nav>
+    <eh-wedding-masthead context="wedding" />
 
+    <!--
+      The same wedding photograph the other marketplace heroes carry, under a
+      near-neutral scrim. The title sits on it, so the page opens the way
+      /vendors and /enquire do instead of with a bare breadcrumb.
+    -->
+    <section class="hero">
+      @if (banner(); as url) {
+        <img class="heroShot" [src]="url" alt="" loading="lazy" />
+      }
+      <div class="heroInner">
+        <nav class="crumbs">
+          <a routerLink="/vendors">All categories</a>
+          <span aria-hidden="true">›</span>
+          <span>{{ meta().plural }}</span>
+        </nav>
+        <h1>{{ meta().plural }} in {{ city() }}</h1>
+        <p class="blurb">{{ meta().blurb }}</p>
+      </div>
+    </section>
+
+    <main class="wrap">
       <header class="head">
-        <div>
-          <h1>
-            <span class="glyph" aria-hidden="true">{{ meta().glyph }}</span>
-            {{ meta().plural }} in {{ city() }}
-          </h1>
-          <p class="blurb">{{ meta().blurb }}</p>
-        </div>
         <p class="tally">
           @if (results.isLoading()) {
             Searching…
@@ -78,72 +80,15 @@ const PRICE_BANDS: { label: string; max: number | null }[] = [
       </header>
 
       <div class="layout">
-        <aside class="rail">
-          <div class="filter">
-            <h2>City</h2>
-            <select [value]="city()" (change)="city.set($any($event.target).value)">
-              @for (c of cities; track c) {
-                <option [value]="c">{{ c }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="filter">
-            <h2>Guests</h2>
-            <input
-              type="number"
-              min="10"
-              max="5000"
-              step="50"
-              [value]="guests()"
-              (input)="setGuests($any($event.target).value)"
-            />
-            <p class="note">Prices below are worked out for this many.</p>
-          </div>
-
-          <div class="filter">
-            <h2>Budget for this vendor</h2>
-            @for (band of priceBands; track band.label) {
-              <label class="radio">
-                <input
-                  type="radio"
-                  name="price"
-                  [checked]="maxPrice() === band.max"
-                  (change)="maxPrice.set(band.max)"
-                />
-                <span>{{ band.label }}</span>
-              </label>
-            }
-          </div>
-
-          <div class="filter">
-            <h2>Rating</h2>
-            @for (r of ratings; track r.value) {
-              <label class="radio">
-                <input
-                  type="radio"
-                  name="rating"
-                  [checked]="minRating() === r.value"
-                  (change)="minRating.set(r.value)"
-                />
-                <span>{{ r.label }}</span>
-              </label>
-            }
-          </div>
-
-          <div class="filter">
-            <h2>Free on</h2>
-            <input type="date" [value]="date()" (input)="date.set($any($event.target).value)" />
-            <p class="note">Only vendors whose calendar is actually open.</p>
-          </div>
-
-          @if (activeFilters() > 0) {
-            <button type="button" class="clear" (click)="clearFilters()">
-              Clear {{ activeFilters() }}
-              {{ activeFilters() === 1 ? 'filter' : 'filters' }}
-            </button>
-          }
-        </aside>
+        <eh-filter-rail
+          [category]="categoryEnum()"
+          [(city)]="city"
+          [(guests)]="guests"
+          [(maxPrice)]="maxPrice"
+          [(minRating)]="minRating"
+          [(date)]="date"
+          [activeFilters]="activeFilters()"
+        />
 
         <section class="results">
           <div class="sortbar">
@@ -206,29 +151,46 @@ const PRICE_BANDS: { label: string; max: number | null }[] = [
   styles: `
     .wrap { max-width: 1200px; margin: 0 auto; padding: 1rem 1rem 4rem; }
 
-    .crumbs { display: flex; gap: 0.4rem; align-items: center; font-size: 0.78rem;
-              color: rgb(0 0 0 / 0.45); margin-bottom: 0.7rem; }
-    .crumbs a { color: #2f2d78; text-decoration: none; }
-    .crumbs a:hover { text-decoration: underline; }
+    :host { display: block; }
 
-    .head { display: flex; align-items: flex-end; justify-content: space-between;
+    .hero { position: relative; display: grid; place-items: center;
+            min-height: clamp(11rem, 24vw, 16rem); overflow: hidden;
+            background: linear-gradient(160deg, var(--brand-deep) 0%, var(--brand-deep) 100%); }
+    .heroShot { position: absolute; inset: 0; width: 100%; height: 100%;
+                object-fit: cover; }
+    .hero::after { content: ''; position: absolute; inset: 0;
+                   background: linear-gradient(to bottom, rgb(var(--scrim-rgb) / 0.58) 0%,
+                                                          rgb(var(--scrim-rgb) / 0.52) 45%,
+                                                          rgb(var(--scrim-rgb) / 0.88) 100%); }
+    .heroInner { position: relative; z-index: 1; width: 100%; max-width: 1200px;
+                 box-sizing: border-box; color: #fff;
+                 padding: clamp(1.4rem, 3.5vw, 2.4rem) clamp(1rem, 4vw, 2rem); }
+
+    .crumbs { display: flex; gap: 0.4rem; align-items: center; font-size: 0.78rem;
+              color: rgb(255 255 255 / 0.75); margin-bottom: 0.5rem; }
+    .crumbs a { color: rgb(255 255 255 / 0.9); text-decoration: none; }
+    .crumbs a:hover { color: #fff; text-decoration: underline; }
+
+    h1 { margin: 0; font-size: clamp(1.5rem, 3.6vw, 2.3rem); font-weight: 800;
+         letter-spacing: -0.022em; text-shadow: 0 2px 18px rgb(0 0 0 / 0.35); }
+    .blurb { margin: 0.5rem 0 0; font-size: 0.92rem; line-height: 1.55;
+             color: rgb(255 255 255 / 0.92); max-width: 60ch;
+             text-shadow: 0 1px 12px rgb(0 0 0 / 0.3); }
+
+    /* Only the tally lives here now, so it sits to the right above the grid. */
+    .head { display: flex; align-items: center; justify-content: flex-end;
             gap: 1rem; flex-wrap: wrap; padding-bottom: 0.9rem;
             border-bottom: 1px solid rgb(0 0 0 / 0.08); margin-bottom: 1.1rem; }
-    h1 { margin: 0; font-size: 1.55rem; color: #23214f; display: flex;
-         align-items: center; gap: 0.5rem; }
-    .glyph { width: 2.2rem; height: 2.2rem; display: grid; place-items: center;
-             font-size: 1.1rem; border-radius: 50%;
-             background: linear-gradient(135deg, rgb(232 163 61 / 0.22),
-                                                 rgb(47 45 120 / 0.12)); }
-    .blurb { margin: 0.35rem 0 0; font-size: 0.87rem; color: rgb(0 0 0 / 0.6);
-             max-width: 60ch; }
     .tally { margin: 0; font-size: 0.85rem; color: rgb(0 0 0 / 0.6); }
-    .tally strong { color: #23214f; font-size: 1rem; }
+    .tally strong { color: var(--brand-deep); font-size: 1rem; }
 
     .layout { display: grid; grid-template-columns: 224px 1fr; gap: 1.4rem;
               align-items: start; }
 
-    .rail { position: sticky; top: 1rem; display: flex; flex-direction: column;
+    /* Scrolls with the page, not sticky - a pinned rail taller than the
+       viewport can never be seen in full. See the matrimony search page for
+       the measurement that settled it. */
+    .rail { display: flex; flex-direction: column;
             gap: 1rem; padding: 1rem; border: 1px solid rgb(0 0 0 / 0.1);
             border-radius: 12px; background: #fff; }
     .filter h2 { margin: 0 0 0.4rem; font-size: 0.72rem; font-weight: 700;
@@ -241,10 +203,10 @@ const PRICE_BANDS: { label: string; max: number | null }[] = [
             line-height: 1.4; }
     .radio { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem;
              padding: 0.15rem 0; cursor: pointer; color: rgb(0 0 0 / 0.75); }
-    .clear { font: inherit; font-size: 0.8rem; font-weight: 600; color: #2f2d78;
-             background: none; border: 1px solid rgb(47 45 120 / 0.35);
+    .clear { font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--brand);
+             background: none; border: 1px solid rgb(var(--brand-rgb) / 0.35);
              border-radius: 7px; padding: 0.4rem 0.6rem; cursor: pointer; }
-    .clear:hover { background: rgb(47 45 120 / 0.06); }
+    .clear:hover { background: rgb(var(--brand-rgb) / 0.06); }
 
     .sortbar { display: flex; justify-content: flex-end; margin-bottom: 0.7rem;
                font-size: 0.8rem; color: rgb(0 0 0 / 0.6); }
@@ -266,11 +228,10 @@ const PRICE_BANDS: { label: string; max: number | null }[] = [
     .empty h2 { margin: 0 0 0.4rem; font-size: 1.05rem; }
     .empty p { margin: 0 0 0.9rem; font-size: 0.87rem; color: rgb(0 0 0 / 0.6); }
     .alt { display: inline-block; margin-left: 0.6rem; font-size: 0.83rem;
-           color: #2f2d78; }
+           color: var(--brand); }
 
     @media (max-width: 860px) {
       .layout { grid-template-columns: 1fr; }
-      .rail { position: static; }
     }
   `,
 })
@@ -280,15 +241,6 @@ export class CategoryListingPage {
   /** From the route, via withComponentInputBinding(). */
   /** The :category route segment, via withComponentInputBinding(). */
   readonly category = input.required<string>();
-
-  protected readonly cities = CITIES;
-  protected readonly priceBands = PRICE_BANDS;
-  protected readonly ratings = [
-    { label: 'Any rating', value: 0 },
-    { label: '4.5 and above', value: 4.5 },
-    { label: '4.0 and above', value: 4 },
-    { label: '3.5 and above', value: 3.5 },
-  ];
 
   protected readonly city = signal<string>(CITIES[0]);
   protected readonly guests = signal(200);
@@ -368,6 +320,15 @@ export class CategoryListingPage {
   );
 
   protected readonly vendors = computed(() => this.results.value());
+
+  /**
+   * The hero backdrop: the wedding photograph shipped with the app.
+   *
+   * It used to be the first result that had a photo. That tied the top of the
+   * page to the filters, and on seeded data it drew a flat colour block. See
+   * public/hero/README.md for how to swap it.
+   */
+  protected readonly banner = signal(HERO_IMAGE);
 
   /** Filters beyond the city, which is always set and so never "active". */
   protected readonly activeFilters = computed(

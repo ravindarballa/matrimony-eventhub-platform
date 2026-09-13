@@ -170,7 +170,7 @@ const NO_SUMMARY: RatingSummary = {
     .summary { padding: 0.9rem 1.1rem; border-bottom: 1px solid rgb(0 0 0 / 0.08); }
     .headline { display: flex; align-items: baseline; gap: 0.5rem; }
     .big { font-size: 2rem; font-variant-numeric: tabular-nums; line-height: 1; }
-    .stars { color: #e8a33d; letter-spacing: 0.05em; }
+    .stars { color: var(--star); letter-spacing: 0.05em; }
     .stars.small { font-size: 0.85rem; }
     .count { font-size: 0.78rem; color: rgb(0 0 0 / 0.55); }
 
@@ -181,7 +181,7 @@ const NO_SUMMARY: RatingSummary = {
                     color: rgb(0 0 0 / 0.6); }
     .bar { height: 0.5rem; border-radius: 3px; background: rgb(0 0 0 / 0.08);
            overflow: hidden; }
-    .fill { display: block; height: 100%; background: #e8a33d; }
+    .fill { display: block; height: 100%; background: var(--star); }
     .histogram .n { text-align: right; font-variant-numeric: tabular-nums; }
 
     .aspects { list-style: none; margin: 0.8rem 0 0; padding: 0.6rem 0 0;
@@ -202,10 +202,10 @@ const NO_SUMMARY: RatingSummary = {
     .body { margin: 0.4rem 0 0; font-size: 0.85rem; line-height: 1.55;
             color: rgb(0 0 0 / 0.8); }
 
-    .reply { margin: 0.6rem 0 0; padding: 0.5rem 0.7rem; border-left: 3px solid #2f2d78;
-             background: rgb(47 45 120 / 0.04); font-size: 0.81rem; line-height: 1.5;
+    .reply { margin: 0.6rem 0 0; padding: 0.5rem 0.7rem; border-left: 3px solid var(--brand);
+             background: rgb(var(--brand-rgb) / 0.04); font-size: 0.81rem; line-height: 1.5;
              color: rgb(0 0 0 / 0.75); }
-    .who { display: block; font-weight: 600; font-size: 0.72rem; color: #2f2d78;
+    .who { display: block; font-weight: 600; font-size: 0.72rem; color: var(--brand);
            margin-bottom: 0.15rem; }
 
     .more { margin: 0; padding: 0.8rem 1.1rem; font-size: 0.78rem;

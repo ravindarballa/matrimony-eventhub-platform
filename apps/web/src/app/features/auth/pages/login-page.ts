@@ -36,6 +36,18 @@ import type { AppError } from '../../../core/models/app-error';
       <h2>Sign in</h2>
       <p class="sub">Welcome back.</p>
 
+      <!--
+        Why they are looking at a login form they did not ask for. Without this
+        an idle timeout is indistinguishable from the site having lost the
+        session on its own.
+      -->
+      @if (timedOut()) {
+        <p class="note" role="status">
+          You were signed out after a spell of inactivity. Sign in to pick up
+          where you left off.
+        </p>
+      }
+
       @if (store.isBusy() || busy()) { <mat-progress-bar mode="indeterminate" /> }
 
       <mat-form-field appearance="outline">
@@ -105,6 +117,11 @@ import type { AppError } from '../../../core/models/app-error';
     h2 { margin: 0; font-size: 1.5rem; font-weight: 600; }
     .sub { margin: -0.5rem 0 0.5rem; color: rgb(0 0 0 / 0.6); font-size: 0.9rem; }
     .hint { margin: -0.25rem 0 0; color: rgb(0 0 0 / 0.6); font-size: 0.85rem; }
+    /* Informational, not an error: the session ending on time is the system
+       working, and red would read as something having gone wrong. */
+    .note { margin: -0.25rem 0 0; font-size: 0.86rem; color: var(--brand-ink);
+            background: var(--brand-tint); border-left: 3px solid var(--brand);
+            padding: 0.55rem 0.7rem; border-radius: 0 6px 6px 0; }
     .dev { margin: -0.25rem 0 0; font-size: 0.85rem; color: #8a5a00;
            background: #fbf1dc; border-left: 3px solid #c98a16;
            padding: 0.5rem 0.7rem; border-radius: 0 6px 6px 0; }
@@ -144,6 +161,11 @@ export class LoginPage {
     this.code.set('');
     this.mode.update((m) => (m === 'password' ? 'otp' : 'password'));
   }
+
+  /** Set by the idle timeout when it sends somebody here. */
+  protected readonly timedOut = signal(
+    this.route.snapshot.queryParamMap.get('reason') === 'timeout',
+  );
 
   /**
    * Where to land after signing in.
